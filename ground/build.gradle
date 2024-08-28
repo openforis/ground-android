@@ -44,7 +44,7 @@ def extractedGroundProtoPath = layout.buildDirectory.dir('extracted-ground-proto
 // Extract API key from google-services.json for use with Google Maps SDK.
 import groovy.json.JsonSlurper
 
-def inputFile = new File("ground/src/debug/google-services.json")
+def inputFile = new File("ground/src/debug/openforis/google-services.json")
 def json = inputFile.exists() ? new JsonSlurper().parseText(inputFile.text) : null
 def googleMapsApiKey = json ? json.client[0].api_key[0].current_key : ''
 
@@ -75,7 +75,8 @@ android {
         }
     }
     defaultConfig {
-        applicationId "com.google.android.ground"
+        manifestPlaceholders
+        applicationId "org.openforis.ground"
         minSdkVersion rootProject.androidMinSdk
         targetSdkVersion rootProject.androidTargetSdk
 
@@ -143,6 +144,11 @@ android {
         dev {
             dimension "backend"
             versionNameSuffix "-dev"
+            buildConfigField "boolean", "USE_EMULATORS", "false"
+        }
+        openforis {
+            dimension "backend"
+            versionNameSuffix "-openforis"
             buildConfigField "boolean", "USE_EMULATORS", "false"
         }
         sig {

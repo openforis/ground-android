@@ -88,7 +88,7 @@
     </provider>
     <provider
       android:name="androidx.core.content.FileProvider"
-      android:authorities="com.google.android.ground"
+      android:authorities="org.openforis.ground"
       android:exported="false"
       android:grantUriPermissions="true">
       <meta-data
