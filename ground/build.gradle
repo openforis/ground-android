@@ -81,8 +81,8 @@ android {
         targetSdkVersion rootProject.androidTargetSdk
 
         // TODO(https://github.com/google/ground-android/pull/985): Calculate version code manually
-        versionCode 18
-        versionName "0.1.8"
+        versionCode 19
+        versionName "0.1.9"
         testInstrumentationRunner "com.google.android.ground.CustomTestRunner"
         multiDexEnabled true
         // For rendering vector map markers.
