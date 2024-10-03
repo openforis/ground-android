@@ -23,6 +23,9 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ProgressBar
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.ComposeView
 import androidx.constraintlayout.widget.Guideline
 import androidx.core.view.WindowInsetsCompat
 import androidx.hilt.navigation.fragment.hiltNavGraphViewModels
@@ -35,6 +38,8 @@ import com.google.android.ground.model.task.Task
 import com.google.android.ground.ui.common.AbstractFragment
 import com.google.android.ground.ui.common.BackPressListener
 import com.google.android.ground.ui.common.Navigator
+import com.google.android.ground.ui.home.HomeScreenFragmentDirections
+import com.google.android.ground.ui.theme.AppTheme
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.flow.filterNotNull
@@ -46,12 +51,13 @@ class DataCollectionFragment : AbstractFragment(), BackPressListener {
   @Inject lateinit var navigator: Navigator
   @Inject lateinit var viewPagerAdapterFactory: DataCollectionViewPagerAdapterFactory
 
-  private val viewModel: DataCollectionViewModel by hiltNavGraphViewModels(R.id.data_collection)
+  val viewModel: DataCollectionViewModel by hiltNavGraphViewModels(R.id.data_collection)
 
   private lateinit var binding: DataCollectionFragBinding
   private lateinit var progressBar: ProgressBar
   private lateinit var guideline: Guideline
   private lateinit var viewPager: ViewPager2
+  private var isNavigatingUp = false
 
   override fun onCreateView(
     inflater: LayoutInflater,
@@ -66,6 +72,7 @@ class DataCollectionFragment : AbstractFragment(), BackPressListener {
     getAbstractActivity().setSupportActionBar(binding.dataCollectionToolbar)
 
     binding.dataCollectionToolbar.setNavigationOnClickListener {
+      isNavigatingUp = true
       viewModel.clearDraft()
       navigator.navigateUp()
     }
@@ -100,13 +107,29 @@ class DataCollectionFragment : AbstractFragment(), BackPressListener {
       }
     )
 
-    lifecycleScope.launch { viewModel.uiState.filterNotNull().collect { updateUI(it) } }
+    lifecycleScope.launch {
+      viewModel.init()
+      viewModel.uiState.filterNotNull().collect { updateUI(it) }
+    }
+  }
+
+  override fun onResume() {
+    super.onResume()
+    isNavigatingUp = false
+  }
+
+  override fun onPause() {
+    super.onPause()
+    if (!isNavigatingUp) {
+      viewModel.saveCurrentState()
+    }
   }
 
   private fun updateUI(uiState: UiState) {
     when (uiState) {
       is UiState.TaskListAvailable -> loadTasks(uiState.tasks, uiState.taskPosition)
       is UiState.TaskUpdated -> onTaskChanged(uiState.taskPosition)
+      is UiState.TaskSubmitted -> onTaskSubmitted()
     }
   }
 
@@ -133,6 +156,27 @@ class DataCollectionFragment : AbstractFragment(), BackPressListener {
     updateProgressBar(taskPosition, true)
   }
 
+  private fun onTaskSubmitted() {
+    // Display a confirmation dialog and move to home screen after that.
+    (view as ViewGroup).addView(
+      ComposeView(requireContext()).apply {
+        setContent {
+          val openAlertDialog = remember { mutableStateOf(true) }
+          when {
+            openAlertDialog.value -> {
+              AppTheme {
+                DataSubmissionConfirmationDialog {
+                  openAlertDialog.value = false
+                  navigator.navigate(HomeScreenFragmentDirections.showHomeScreen())
+                }
+              }
+            }
+          }
+        }
+      }
+    )
+  }
+
   private fun updateProgressBar(taskPosition: TaskPosition, shouldAnimate: Boolean) {
     // Reset progress bar
     progressBar.max = (taskPosition.sequenceSize - 1) * PROGRESS_SCALE
@@ -152,6 +196,7 @@ class DataCollectionFragment : AbstractFragment(), BackPressListener {
 
   override fun onBack(): Boolean =
     if (viewPager.currentItem == 0) {
+      isNavigatingUp = true
       // If the user is currently looking at the first step, allow the system to handle the
       // Back button. This calls finish() on this activity and pops the back stack.
       viewModel.clearDraft()
