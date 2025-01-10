@@ -29,8 +29,10 @@ import androidx.navigation.fragment.findNavController
 import com.google.android.ground.databinding.OfflineAreaSelectorFragBinding
 import com.google.android.ground.ui.common.AbstractMapContainerFragment
 import com.google.android.ground.ui.common.BaseMapViewModel
+import com.google.android.ground.ui.common.MapConfig
 import com.google.android.ground.ui.home.mapcontainer.HomeScreenMapContainerViewModel
 import com.google.android.ground.ui.map.MapFragment
+import com.google.android.ground.ui.map.MapType
 import com.google.android.ground.ui.theme.AppTheme
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
@@ -81,6 +83,14 @@ class OfflineAreaSelectorFragment : AbstractMapContainerFragment() {
     }
   }
 
+  override fun getMapConfig(): MapConfig =
+    super.getMapConfig()
+      .copy(
+        allowRotateGestures = false,
+        overrideMapType = MapType.TERRAIN,
+        showOfflineImagery = false,
+      )
+
   override fun onMapReady(map: MapFragment) {
     // Observe events emitted by the ViewModel.
     viewLifecycleOwner.lifecycleScope.launch {
@@ -102,8 +112,8 @@ class OfflineAreaSelectorFragment : AbstractMapContainerFragment() {
               AppTheme {
                 DownloadProgressDialog(
                   progress = progress.value,
-                  // TODO - Add Download Cancel Feature
-                  // https://github.com/google/ground-android/issues/2884
+                  // TODO: - Add Download Cancel Feature
+                  // Issue URL: https://github.com/google/ground-android/issues/1596
                   onDismiss = { openAlertDialog.value = false },
                 )
               }

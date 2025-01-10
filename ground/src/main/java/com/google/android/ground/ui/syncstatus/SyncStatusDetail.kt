@@ -16,11 +16,22 @@
 package com.google.android.ground.ui.syncstatus
 
 import com.google.android.ground.model.mutation.Mutation
+import com.google.android.ground.model.submission.UploadQueueEntry
+import java.util.Date
 
-/** A tiny helper class for bundling mutation history display data. */
-data class MutationDetail(
+/**
+ * Defines the set of data needed to display the human-readable status of a queued
+ * [UploadQueueEntry].
+ */
+data class SyncStatusDetail(
+  /** The username of the user who made this change. */
   val user: String,
-  val mutation: Mutation,
-  val loiLabel: String,
-  val loiSubtitle: String,
+  /** The underlying status of an upload. */
+  val status: Mutation.SyncStatus,
+  /** The instant at which this change was initiated on the client device. */
+  val timestamp: Date,
+  /** A human-readable label summarizing what data changed. */
+  val label: String,
+  /** A human-readable label providing further information on the change. */
+  val subtitle: String,
 )

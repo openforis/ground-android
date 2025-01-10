@@ -17,6 +17,7 @@ package com.google.android.ground.system
 
 import android.location.Location
 import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.Priority
 import com.google.android.ground.coroutines.ApplicationScope
 import com.google.android.ground.system.channel.LocationSharedFlowCallback
 import javax.inject.Inject
@@ -30,10 +31,9 @@ private const val UPDATE_INTERVAL: Long = 1000 /* 1 sec */
 private const val FASTEST_INTERVAL: Long = 250 /* 250 ms */
 
 val FINE_LOCATION_UPDATES_REQUEST: LocationRequest =
-  LocationRequest()
-    .setPriority(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY)
-    .setInterval(UPDATE_INTERVAL)
-    .setFastestInterval(FASTEST_INTERVAL)
+  LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, UPDATE_INTERVAL)
+    .apply { setMinUpdateIntervalMillis(FASTEST_INTERVAL) }
+    .build()
 
 @Singleton
 class LocationManager
@@ -50,6 +50,7 @@ constructor(
   private val locationCallback = LocationSharedFlowCallback(_locationUpdates, externalScope)
 
   // TODO: Request updates on resume.
+  // Issue URL: https://github.com/google/ground-android/issues/2624
   /** Immediately emits the last known location (if any) and then subscribes to location updates. */
   suspend fun requestLocationUpdates() {
     locationClient.getLastLocation()?.let { _locationUpdates.emit(it) }
@@ -57,5 +58,6 @@ constructor(
   }
 
   // TODO: Remove updates on pause.
+  // Issue URL: https://github.com/google/ground-android/issues/2624
   suspend fun disableLocationUpdates() = locationClient.removeLocationUpdates(locationCallback)
 }

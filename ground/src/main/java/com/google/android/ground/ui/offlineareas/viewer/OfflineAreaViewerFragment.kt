@@ -26,7 +26,9 @@ import androidx.navigation.fragment.findNavController
 import com.google.android.ground.databinding.OfflineAreaViewerFragBinding
 import com.google.android.ground.ui.common.AbstractMapContainerFragment
 import com.google.android.ground.ui.common.BaseMapViewModel
+import com.google.android.ground.ui.common.MapConfig
 import com.google.android.ground.ui.map.MapFragment
+import com.google.android.ground.ui.map.MapType
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.launch
@@ -40,11 +42,14 @@ class OfflineAreaViewerFragment @Inject constructor() : AbstractMapContainerFrag
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
 
-    // TODO(#2649) requireNotNull will throw error, it should be handle smoothly
-    val args = OfflineAreaViewerFragmentArgs.fromBundle(requireNotNull(arguments))
+    val args = OfflineAreaViewerFragmentArgs.fromBundle(requireArguments())
     viewModel = getViewModel(OfflineAreaViewerViewModel::class.java)
     viewModel.initialize(args.offlineAreaId)
   }
+
+  override fun getMapConfig(): MapConfig =
+    super.getMapConfig()
+      .copy(allowGestures = false, overrideMapType = MapType.TERRAIN, showOfflineImagery = true)
 
   override fun onMapReady(map: MapFragment) {
     super.onMapReady(map)
