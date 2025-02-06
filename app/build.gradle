@@ -44,11 +44,7 @@ def extractedGroundProtoPath = layout.buildDirectory.dir('extracted-ground-proto
 // Extract API key from google-services.json for use with Google Maps SDK.
 import groovy.json.JsonSlurper
 
-<<<<<<< HEAD:ground/build.gradle
-def inputFile = new File("ground/src/debug/openforis/google-services.json")
-=======
-def inputFile = new File("app/src/debug/google-services.json")
->>>>>>> 06f4dd1393f7a7de4889e7edf88037fd9ddd99ab:app/build.gradle
+def inputFile = new File("app/src/debug/openforis/google-services.json")
 def json = inputFile.exists() ? new JsonSlurper().parseText(inputFile.text) : null
 def googleMapsApiKey = json ? json.client[0].api_key[0].current_key : ''
 
@@ -85,14 +81,8 @@ android {
         targetSdkVersion rootProject.androidTargetSdk
         // TODO: Calculate version code manually
         // Issue URL: https://github.com/google/ground-android/pull/985
-<<<<<<< HEAD:ground/build.gradle
-        versionCode 25
-        versionName "0.1.14"
-        testInstrumentationRunner "com.google.android.ground.CustomTestRunner"
-=======
-        versionCode gitVersioner.versionCode
-        versionName gitVersioner.versionName + " " + getCommitSha1()
->>>>>>> 06f4dd1393f7a7de4889e7edf88037fd9ddd99ab:app/build.gradle
+        versionCode 26
+        versionName "0.1.15"
         multiDexEnabled true
         // For rendering vector map markers.
         vectorDrawables.useSupportLibrary = true
