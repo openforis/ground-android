@@ -76,8 +76,8 @@ android {
         targetSdkVersion rootProject.androidTargetSdk
         // TODO: Calculate version code manually
         // Issue URL: https://github.com/google/ground-android/pull/985
-        versionCode 30
-        versionName "0.1.19"
+        versionCode 34
+        versionName "0.2.1"
         multiDexEnabled true
         // For rendering vector map markers.
         vectorDrawables.useSupportLibrary = true
@@ -139,23 +139,17 @@ android {
             buildConfigField "boolean", "USE_EMULATORS", "true"
             manifestPlaceholders.usesCleartextTraffic = true
         }
-        dev {
-            dimension "backend"
-            versionNameSuffix "-dev"
-            buildConfigField "boolean", "USE_EMULATORS", "false"
-        }
         openforis {
             dimension "backend"
             buildConfigField "boolean", "USE_EMULATORS", "false"
         }
-        sig {
+        devSig {
             dimension "backend"
-            versionNameSuffix "-sig"
             buildConfigField "boolean", "USE_EMULATORS", "false"
         }
-        ecam {
+        dev {
             dimension "backend"
-            versionNameSuffix "-ecam"
+            versionNameSuffix "-dev"
             buildConfigField "boolean", "USE_EMULATORS", "false"
         }
     }
