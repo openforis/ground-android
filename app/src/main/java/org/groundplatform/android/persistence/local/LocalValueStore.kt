@@ -16,6 +16,8 @@
 package org.groundplatform.android.persistence.local
 
 import android.content.SharedPreferences
+import androidx.core.content.edit
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,7 +37,9 @@ import timber.log.Timber
  * database-specific implementation.
  */
 @Singleton
-class LocalValueStore @Inject constructor(private val preferences: SharedPreferences) {
+class LocalValueStore
+@Inject
+constructor(private val preferences: SharedPreferences, private val locale: Locale) {
   private val _mapType = MutableStateFlow(mapType)
   private val _offlineImageryEnabled = MutableStateFlow(isOfflineImageryEnabled)
 
@@ -48,9 +52,7 @@ class LocalValueStore @Inject constructor(private val preferences: SharedPrefere
    */
   var lastActiveSurveyId: String
     get() = allowThreadDiskReads { preferences.getString(ACTIVE_SURVEY_ID_KEY, "").orEmpty() }
-    set(id) = allowThreadDiskWrites {
-      preferences.edit().putString(ACTIVE_SURVEY_ID_KEY, id).apply()
-    }
+    set(id) = allowThreadDiskWrites { preferences.edit { putString(ACTIVE_SURVEY_ID_KEY, id) } }
 
   /** The last map type selected. */
   var mapType: MapType
@@ -59,7 +61,7 @@ class LocalValueStore @Inject constructor(private val preferences: SharedPrefere
       MapType.entries[mapTypeIdx]
     }
     set(value) = allowThreadDiskWrites {
-      preferences.edit().putInt(MAP_TYPE, value.ordinal).apply()
+      preferences.edit { putInt(MAP_TYPE, value.ordinal) }
       _mapType.update { value }
     }
 
@@ -67,21 +69,19 @@ class LocalValueStore @Inject constructor(private val preferences: SharedPrefere
   var isLocationLockEnabled: Boolean
     get() = allowThreadDiskReads { preferences.getBoolean(LOCATION_LOCK_ENABLED, false) }
     set(value) = allowThreadDiskWrites {
-      preferences.edit().putBoolean(LOCATION_LOCK_ENABLED, value).apply()
+      preferences.edit { putBoolean(LOCATION_LOCK_ENABLED, value) }
     }
 
   /** Terms of service acceptance state for the currently signed in user. */
   var isTermsOfServiceAccepted: Boolean
     get() = allowThreadDiskReads { preferences.getBoolean(TOS_ACCEPTED, false) }
-    set(value) = allowThreadDiskWrites {
-      preferences.edit().putBoolean(TOS_ACCEPTED, value).apply()
-    }
+    set(value) = allowThreadDiskWrites { preferences.edit { putBoolean(TOS_ACCEPTED, value) } }
 
   /** Whether to overlay offline map imagery. */
   var isOfflineImageryEnabled: Boolean
     get() = allowThreadDiskReads { preferences.getBoolean(OFFLINE_MAP_IMAGERY, true) }
     set(value) = allowThreadDiskReads {
-      preferences.edit().putBoolean(OFFLINE_MAP_IMAGERY, value).apply()
+      preferences.edit { putBoolean(OFFLINE_MAP_IMAGERY, value) }
       _offlineImageryEnabled.update { value }
     }
 
@@ -89,35 +89,40 @@ class LocalValueStore @Inject constructor(private val preferences: SharedPrefere
   var drawAreaInstructionsShown: Boolean
     get() = allowThreadDiskReads { preferences.getBoolean(DRAW_AREA_INSTRUCTIONS_SHOWN, false) }
     set(value) = allowThreadDiskReads {
-      preferences.edit().putBoolean(DRAW_AREA_INSTRUCTIONS_SHOWN, value).apply()
+      preferences.edit { putBoolean(DRAW_AREA_INSTRUCTIONS_SHOWN, value) }
     }
 
   /** Whether to display instructions when loading a drop pin task. */
   var dropPinInstructionsShown: Boolean
     get() = allowThreadDiskReads { preferences.getBoolean(DROP_PIN_INSTRUCTIONS_SHOWN, false) }
     set(value) = allowThreadDiskReads {
-      preferences.edit().putBoolean(DROP_PIN_INSTRUCTIONS_SHOWN, value).apply()
+      preferences.edit { putBoolean(DROP_PIN_INSTRUCTIONS_SHOWN, value) }
     }
 
   var draftSubmissionId: String?
     get() = allowThreadDiskReads { preferences.getString(DRAFT_SUBMISSION_ID, null) }
-    set(value) = allowThreadDiskReads {
-      preferences.edit().putString(DRAFT_SUBMISSION_ID, value).apply()
+    set(value) = allowThreadDiskReads { preferences.edit { putString(DRAFT_SUBMISSION_ID, value) } }
+
+  var selectedLanguage: String
+    get() = allowThreadDiskReads {
+      preferences.getString(Keys.LANGUAGE, locale.language) ?: locale.language
     }
+    set(value) = allowThreadDiskReads { preferences.edit { putString(Keys.LANGUAGE, value) } }
 
   /** Removes all values stored in the local store. */
-  fun clear() = allowThreadDiskWrites { preferences.edit().clear().apply() }
+  fun clear() = allowThreadDiskWrites { preferences.edit { clear() } }
 
   fun shouldUploadMediaOverUnmeteredConnectionOnly(): Boolean = allowThreadDiskReads {
     preferences.getBoolean(Keys.UPLOAD_MEDIA, false)
   }
 
+  fun clearLastCameraPosition(surveyId: String) = allowThreadDiskReads {
+    preferences.edit { remove(LAST_VIEWPORT_PREFIX + surveyId) }
+  }
+
   fun setLastCameraPosition(surveyId: String, cameraPosition: CameraPosition) =
     allowThreadDiskReads {
-      preferences
-        .edit()
-        .putString(LAST_VIEWPORT_PREFIX + surveyId, cameraPosition.serialize())
-        .apply()
+      preferences.edit { putString(LAST_VIEWPORT_PREFIX + surveyId, cameraPosition.serialize()) }
     }
 
   fun getLastCameraPosition(surveyId: String): CameraPosition? = allowThreadDiskReads {
@@ -134,7 +139,7 @@ class LocalValueStore @Inject constructor(private val preferences: SharedPrefere
   }
 
   fun setDataSharingConsent(surveyId: String, consent: Boolean) {
-    preferences.edit().putBoolean(DATA_SHARING_CONSENT_PREFIX + surveyId, consent).apply()
+    preferences.edit { putBoolean(DATA_SHARING_CONSENT_PREFIX + surveyId, consent) }
   }
 
   fun getDataSharingConsent(surveyId: String): Boolean = allowThreadDiskReads {

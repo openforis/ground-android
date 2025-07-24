@@ -17,8 +17,10 @@ package org.groundplatform.android
 
 import android.app.AlertDialog
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -59,6 +61,8 @@ class MainActivity : AbstractActivity() {
 
   private var signInProgressDialog: AlertDialog? = null
 
+  private var pendingDeepLink: Uri? = null
+
   override fun onCreate(savedInstanceState: Bundle?) {
     // Make sure this is before calling super.onCreate()
     setTheme(R.style.AppTheme)
@@ -66,7 +70,7 @@ class MainActivity : AbstractActivity() {
     // Issue URL: https://github.com/google/ground-android/issues/620
     AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
     super.onCreate(savedInstanceState)
-
+    enableEdgeToEdge()
     // Set up event streams first. Navigator must be listening when auth is first initialized.
     lifecycleScope.launch {
       activityStreams.activityRequests.collect { callback: ActivityCallback ->
@@ -82,7 +86,17 @@ class MainActivity : AbstractActivity() {
 
     viewModel = viewModelFactory[this, MainViewModel::class.java]
 
-    lifecycleScope.launch { viewModel.navigationRequests.filterNotNull().collect { updateUi(it) } }
+    lifecycleScope.launch {
+      intent.data?.let {
+        if (navHostFragment.navController.currentDestination?.id != R.id.sign_in_fragment) {
+          viewModel.setDeepLinkUri(it)
+        } else {
+          pendingDeepLink = it
+        }
+      }
+
+      viewModel.navigationRequests.filterNotNull().collect { updateUi(it) }
+    }
 
     onBackPressedDispatcher.addCallback(
       this,
@@ -116,6 +130,11 @@ class MainActivity : AbstractActivity() {
       }
       MainUiState.OnUserSigningIn -> {
         onSignInProgress(true)
+      }
+      is MainUiState.ActiveSurveyById -> {
+        val action = SurveySelectorFragmentDirections.showSurveySelectorScreen(false)
+        action.surveyId = uiState.surveyId
+        navigateTo(action)
       }
     }
 
@@ -173,11 +192,6 @@ class MainActivity : AbstractActivity() {
     Timber.v("Activity result received")
     super.onActivityResult(requestCode, resultCode, intent)
     activityStreams.onActivityResult(requestCode, resultCode, intent)
-  }
-
-  override fun onResume() {
-    super.onResume()
-    viewModel.checkAuthStatus()
   }
 
   /** Override up button behavior to use Navigation Components back stack. */

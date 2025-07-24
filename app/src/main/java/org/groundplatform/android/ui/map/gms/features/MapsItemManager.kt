@@ -21,7 +21,7 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.Polygon as MapsPolygon
 import com.google.android.gms.maps.model.Polyline
-import com.google.maps.android.PolyUtil.*
+import com.google.maps.android.PolyUtil.containsLocation
 import org.groundplatform.android.model.geometry.LineString
 import org.groundplatform.android.model.geometry.MultiPolygon
 import org.groundplatform.android.model.geometry.Point
@@ -53,7 +53,9 @@ class MapsItemManager(
           is MultiPolygon ->
             geometry.polygons.map { polygonRenderer.add(map, tag, it, style, selected, visible) }
           is LineString ->
-            listOf(lineStringRenderer.add(map, tag, geometry, style, selected, visible))
+            listOf(
+              lineStringRenderer.add(map, tag, geometry, style, selected, visible, tooltipText)
+            )
           else -> error("Render ${geometry.javaClass} geometry not supported")
         }
     }

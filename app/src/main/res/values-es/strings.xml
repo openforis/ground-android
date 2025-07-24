@@ -151,17 +151,18 @@
   <string name="switch_survey">Cambiar encuesta</string>
   <string name="no_survey_selected">No se ha seleccionado ninguna encuesta</string>
   <string name="undo">Deshacer</string>
+  <string name="redo">Rehacer</string>
   <string name="view_licenses_title">Licencias</string>
   <string name="about">Acerca de</string>
   <string name="terms_of_service">Términos de servicio</string>
   <string name="about_ground">Ground es un proyecto de código abierto desarrollado por Google y la FAO bajo la Alianza de Datos Forestales (Forest Data Partnership), con la ayuda de SIG, Ecam y otros contribuyentes de la comunidad de código abierto. \n\nEstá licenciado bajo la <annotation type="apache_license">Apache License, Version 2.0</annotation>. \n\nVer otras  <annotation type="all_licenses">licencias</annotation></string>
-  <string name="failed">Error</string>
-  <string name="synced">Sincronizado</string>
-  <string name="syncing">Sincronizando</string>
-  <string name="upload_pending">Carga pendiente</string>
-  <string name="data_synced_media_pending">Datos sincronizados\n(multimedia pendiente)</string>
-  <string name="data_synced_media_pending_retry">Datos sincronizados\n(reintentar multimedia pendiente)</string>
-  <string name="media_syncing">Sincronizando multimedia</string>
+  <string name="pending_retry">Pendiente de reintento</string>
+  <string name="uploaded">Subido</string>
+  <string name="uploading_form_data">Subiendo datos del formulario</string>
+  <string name="pending">Pendiente</string>
+  <string name="photos_pending">Fotos pendientes</string>
+  <string name="photos_pending_retry">Fotos pendientes de reintento</string>
+  <string name="uploading_photos">Subiendo fotos</string>
   <string name="data_sync_status">Estado de sincronización de datos</string>
   <string name="signout_warning">Si cierra sesión, se perderán todos los datos no guardados.</string>
   <string name="admin_request_access">Para continuar, contacte con su administrador del sistema para solicitar acceso.</string>
@@ -177,6 +178,8 @@
   <string name="report_summary">Informe de problemas técnicos o sugiera nuevas ubicaciones de interés</string>
   <string name="not_yet_impl_title">Aún no implementado</string>
   <string name="accuracy">Precisión:</string>
+  <string name="select_language_title">Seleccionar idioma</string>
+  <string name="select_language_summary">Selecciona tu idioma preferido</string>
   <!-- Data Sharing Consent Text -->
   <string name="data_sharing_no_terms">*No hay términos para mostrar.*</string>
   <string name="data_sharing_private_message">
@@ -209,4 +212,9 @@
   <string name="clear">Clara</string>
 
   <string name="area_message">Área: %1$.2f m²</string>
+
+  <string name="lang_english">Inglés</string>
+  <string name="lang_french">Francés</string>
+  <string name="lang_spanish">Español</string>
+  <string name="lang_portuguese">Portugués</string>
 </resources>

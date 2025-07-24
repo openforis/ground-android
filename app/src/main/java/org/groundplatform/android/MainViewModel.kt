@@ -15,6 +15,7 @@
  */
 package org.groundplatform.android
 
+import android.net.Uri
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
@@ -23,12 +24,12 @@ import com.google.android.gms.common.api.ApiException
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.groundplatform.android.Config.SURVEY_PATH_SEGMENT
 import org.groundplatform.android.coroutines.IoDispatcher
 import org.groundplatform.android.model.User
 import org.groundplatform.android.persistence.local.room.LocalDatabase
@@ -54,7 +55,7 @@ constructor(
   private val termsOfServiceRepository: TermsOfServiceRepository,
   private val reactivateLastSurvey: ReactivateLastSurveyUseCase,
   @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
-  private val authenticationManager: AuthenticationManager,
+  authenticationManager: AuthenticationManager,
 ) : AbstractViewModel() {
 
   private val _navigationRequests: MutableSharedFlow<MainUiState?> = MutableSharedFlow()
@@ -63,19 +64,22 @@ constructor(
   /** The window insets determined by the activity. */
   val windowInsets: MutableLiveData<WindowInsetsCompat> = MutableLiveData()
 
+  private val _deepLinkUri = MutableStateFlow<Uri?>(null)
+
   init {
     viewModelScope.launch {
-      authenticationManager.signInState.collectLatest { signInState ->
-        _navigationRequests.emit(onSignInStateChange(signInState))
+      // TODO: Check auth status whenever fragments resumes
+      // Issue URL: https://github.com/google/ground-android/issues/2624
+      authenticationManager.signInState.collect {
+        _navigationRequests.emit(onSignInStateChange(it))
       }
     }
   }
 
-  fun checkAuthStatus() {
-    viewModelScope.launch {
-      val currentSignInState = authenticationManager.signInState.first()
-      _navigationRequests.emit(onSignInStateChange(currentSignInState))
-    }
+  private fun isDeepLinkAvailable(): Boolean = _deepLinkUri.value != null
+
+  fun setDeepLinkUri(uri: Uri) {
+    _deepLinkUri.value = uri
   }
 
   private suspend fun onSignInStateChange(signInState: SignInState): MainUiState =
@@ -126,6 +130,21 @@ constructor(
       userRepository.saveUserDetails(user)
       if (!isTosAccepted()) {
         MainUiState.TosNotAccepted
+      } else if (isDeepLinkAvailable()) {
+        val deepLinkUri = _deepLinkUri.value
+        val pathSegments = deepLinkUri?.pathSegments ?: emptyList()
+
+        val surveyId =
+          pathSegments
+            .indexOf(SURVEY_PATH_SEGMENT)
+            .takeIf { it != -1 }
+            ?.let { pathSegments.getOrNull(it + 1) }
+
+        if (!surveyId.isNullOrBlank()) {
+          MainUiState.ActiveSurveyById(surveyId)
+        } else {
+          MainUiState.NoActiveSurvey
+        }
       } else if (!reactivateLastSurvey()) {
         MainUiState.NoActiveSurvey
       } else {

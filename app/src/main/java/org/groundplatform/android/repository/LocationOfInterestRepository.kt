@@ -94,9 +94,9 @@ constructor(
     val locationOfInterest = survey?.let { localLoiStore.getLocationOfInterest(it, loiId) }
 
     if (survey == null) {
-      Timber.e("LocationOfInterestRepository", "Survey not found: $surveyId")
+      Timber.e("Survey not found: $surveyId")
     } else if (locationOfInterest == null) {
-      Timber.e("LocationRepository", "LOI not found for survey $surveyId: LOI ID $loiId")
+      Timber.e("LOI not found for survey $surveyId: LOI ID $loiId")
     }
     return locationOfInterest
   }
@@ -139,6 +139,12 @@ constructor(
     localLoiStore.applyAndEnqueue(mutation)
     mutationSyncWorkManager.enqueueSyncWorker()
   }
+
+  /**
+   * Returns true if [Survey] for the given [surveyId] has at least one valid [LocationOfInterest]
+   * in the local storage.
+   */
+  suspend fun hasValidLois(surveyId: String): Boolean = localLoiStore.getLoiCount(surveyId) > 0
 
   /** Returns a flow of all valid (not deleted) [LocationOfInterest] in the given [Survey]. */
   fun getValidLois(survey: Survey): Flow<Set<LocationOfInterest>> =

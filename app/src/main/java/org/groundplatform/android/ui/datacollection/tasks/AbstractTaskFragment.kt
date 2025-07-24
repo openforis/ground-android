@@ -21,15 +21,11 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.core.view.doOnAttach
 import androidx.hilt.navigation.fragment.hiltNavGraphViewModels
 import androidx.lifecycle.lifecycleScope
@@ -49,6 +45,7 @@ import org.groundplatform.android.ui.datacollection.components.TaskView
 import org.groundplatform.android.util.renderComposableDialog
 import org.groundplatform.android.util.setComposableContent
 import org.jetbrains.annotations.TestOnly
+import timber.log.Timber
 
 abstract class AbstractTaskFragment<T : AbstractTaskViewModel> : AbstractFragment() {
 
@@ -62,6 +59,16 @@ abstract class AbstractTaskFragment<T : AbstractTaskViewModel> : AbstractFragmen
 
   /** ID of the associated task in the Job. Used for instantiating the [viewModel]. */
   var taskId by Delegates.notNull<String>()
+
+  protected val isViewModelInitialized: Boolean
+    get() =
+      try {
+        viewModel
+        true
+      } catch (e: UninitializedPropertyAccessException) {
+        Timber.d("Viewmodel is not initialized", e)
+        false
+      }
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
@@ -220,13 +227,7 @@ abstract class AbstractTaskFragment<T : AbstractTaskViewModel> : AbstractFragmen
   /** Adds the action buttons to the UI. */
   private fun renderButtons() {
     taskView.actionButtonsContainer.composeView.setComposableContent {
-      Row(
-        horizontalArrangement = Arrangement.SpaceBetween,
-        modifier = Modifier.fillMaxWidth().padding(8.dp),
-      ) {
-        // TODO: Previous button should always be positioned to the left of the screen.
-        //  Rest buttons should be aligned to the right side of the screen.
-        // Issue URL: https://github.com/google/ground-android/issues/2417
+      Row(horizontalArrangement = Arrangement.SpaceBetween) {
         buttonDataList.sortedBy { it.index }.forEach { (_, button) -> button.CreateButton() }
       }
     }
