@@ -76,8 +76,8 @@ android {
         targetSdkVersion rootProject.androidTargetSdk
         // TODO: Calculate version code manually
         // Issue URL: https://github.com/google/ground-android/pull/985
-        versionCode 34
-        versionName "0.2.1"
+        versionCode 35
+        versionName "0.2.2"
         multiDexEnabled true
         // For rendering vector map markers.
         vectorDrawables.useSupportLibrary = true
