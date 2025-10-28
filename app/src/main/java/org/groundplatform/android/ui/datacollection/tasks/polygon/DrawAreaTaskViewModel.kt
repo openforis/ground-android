@@ -15,6 +15,7 @@
  */
 package org.groundplatform.android.ui.datacollection.tasks.polygon
 
+import android.icu.util.MeasureUnit
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
@@ -27,6 +28,9 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import org.groundplatform.android.R
+import org.groundplatform.android.common.Constants
+import org.groundplatform.android.data.local.LocalValueStore
+import org.groundplatform.android.data.uuid.OfflineUuidGenerator
 import org.groundplatform.android.model.geometry.Coordinates
 import org.groundplatform.android.model.geometry.LineString
 import org.groundplatform.android.model.geometry.LinearRing
@@ -37,12 +41,9 @@ import org.groundplatform.android.model.submission.DrawAreaTaskData
 import org.groundplatform.android.model.submission.DrawAreaTaskIncompleteData
 import org.groundplatform.android.model.submission.TaskData
 import org.groundplatform.android.model.task.Task
-import org.groundplatform.android.persistence.local.LocalValueStore
-import org.groundplatform.android.persistence.uuid.OfflineUuidGenerator
 import org.groundplatform.android.ui.common.SharedViewModel
 import org.groundplatform.android.ui.datacollection.tasks.AbstractTaskViewModel
 import org.groundplatform.android.ui.map.Feature
-import org.groundplatform.android.ui.map.FeatureType
 import org.groundplatform.android.ui.util.LocaleAwareMeasureFormatter
 import org.groundplatform.android.ui.util.VibrationHelper
 import org.groundplatform.android.ui.util.calculateShoelacePolygonArea
@@ -67,6 +68,32 @@ internal constructor(
   /** Polygon [Feature] being drawn by the user. */
   private val _draftArea: MutableStateFlow<Feature?> = MutableStateFlow(null)
   val draftArea: StateFlow<Feature?> = _draftArea.asStateFlow()
+
+  /**
+   * Unique identifier for the currently active draft polygon or line being drawn.
+   *
+   * This tag helps the ViewModel distinguish between multiple user-created features and ensures
+   * that updates are applied to the correct draft feature until completion.
+   */
+  private var draftTag: Feature.Tag? = null
+
+  /**
+   * Emits incremental updates to the currently drawn draft feature (e.g., polygon or line string).
+   *
+   * The flow sends partial geometry updates—such as when a new vertex is added or moved— allowing
+   * the map UI to update the in-progress shape in real-time.
+   *
+   * Uses [MutableSharedFlow] with a small buffer to avoid missing updates during rapid emissions.
+   */
+  private val _draftUpdates = MutableSharedFlow<Feature>(extraBufferCapacity = 1)
+
+  /**
+   * Public read-only access to the stream of draft feature updates.
+   *
+   * UI components (e.g., map fragments) collect from this flow to render live geometry updates as
+   * the user draws or modifies a shape.
+   */
+  val draftUpdates = _draftUpdates.asSharedFlow()
 
   /** Whether the instructions dialog has been shown or not. */
   var instructionsDialogShown: Boolean by localValueStore::drawAreaInstructionsShown
@@ -95,11 +122,14 @@ internal constructor(
   private val _showSelfIntersectionDialog = MutableSharedFlow<Unit>()
   val showSelfIntersectionDialog = _showSelfIntersectionDialog.asSharedFlow()
 
-  private var strokeColor: Int = 0
+  var hasSelfIntersection: Boolean = false
+    private set
+
+  private lateinit var featureStyle: Feature.Style
 
   override fun initialize(job: Job, task: Task, taskData: TaskData?) {
     super.initialize(job, task, taskData)
-    strokeColor = job.getDefaultColor()
+    featureStyle = Feature.Style(job.getDefaultColor(), Feature.VertexStyle.CIRCLE)
 
     // Apply saved state if it exists.
     when (taskData) {
@@ -128,14 +158,6 @@ internal constructor(
   fun isMarkedComplete(): Boolean = isMarkedComplete.value
 
   fun getLastVertex() = vertices.lastOrNull()
-
-  fun markComplete() {
-    _isMarkedComplete.value = true
-  }
-
-  fun setTooClose(value: Boolean) {
-    _isTooClose.value = value
-  }
 
   private fun onSelfIntersectionDetected() {
     viewModelScope.launch { _showSelfIntersectionDialog.emit(Unit) }
@@ -245,11 +267,33 @@ internal constructor(
     }
   }
 
-  fun checkVertexIntersection() {
-    if (isSelfIntersecting(vertices)) {
+  fun checkVertexIntersection(): Boolean {
+    hasSelfIntersection = isSelfIntersecting(vertices)
+    if (hasSelfIntersection) {
       vertices = vertices.dropLast(1)
       onSelfIntersectionDetected()
     }
+    return hasSelfIntersection
+  }
+
+  fun validatePolygonCompletion(): Boolean {
+    if (vertices.size < 3) {
+      return false
+    }
+
+    val ring =
+      if (vertices.first() != vertices.last()) {
+        vertices + vertices.first()
+      } else {
+        vertices
+      }
+
+    hasSelfIntersection = isSelfIntersecting(ring)
+    if (hasSelfIntersection) {
+      onSelfIntersectionDetected()
+      return false
+    }
+    return true
   }
 
   private fun updateVertices(newVertices: List<Coordinates>) {
@@ -268,24 +312,44 @@ internal constructor(
     _polygonArea.value = calculateShoelacePolygonArea(vertices)
   }
 
-  /** Updates the [Feature] drawn on map based on the value of [vertices]. */
+  /**
+   * Emits the current draft polygon or line feature state to the map.
+   *
+   * This function is responsible for keeping the map view in sync with the user's drawing
+   * interactions:
+   * - When vertices are empty → clears the current draft from the map.
+   * - On the first vertex → creates a new [Feature] and emits it to [_draftArea].
+   * - On subsequent updates → reuses the same [Feature.Tag] and emits updated geometry through
+   *   [_draftUpdates] for in-place map updates.
+   *
+   * The goal is to ensure smooth, flicker-free rendering by avoiding unnecessary feature
+   * re-creation. Only the geometry and style of the active draft are updated in place on the map.
+   *
+   * This coroutine runs on [viewModelScope] to ensure lifecycle safety.
+   */
   private fun refreshMap() =
     viewModelScope.launch {
-      _draftArea.emit(
-        if (vertices.isEmpty()) {
-          null
+      if (vertices.isEmpty()) {
+        _draftArea.emit(null)
+        draftTag = null
+      } else {
+        if (draftTag == null) {
+          val feature = buildPolygonFeature()
+          draftTag = feature.tag
+          _draftArea.emit(feature)
         } else {
-          buildPolygonFeature()
+          val feature = buildPolygonFeature(id = draftTag!!.id)
+          _draftUpdates.tryEmit(feature)
         }
-      )
+      }
     }
 
-  private suspend fun buildPolygonFeature() =
+  private suspend fun buildPolygonFeature(id: String? = null) =
     Feature(
-      id = uuidGenerator.generateUuid(),
-      type = FeatureType.USER_POLYGON.ordinal,
+      id = id ?: uuidGenerator.generateUuid(),
+      type = Feature.Type.USER_POLYGON,
       geometry = LineString(vertices),
-      style = Feature.Style(strokeColor, Feature.VertexStyle.CIRCLE),
+      style = featureStyle,
       clusterable = false,
       selected = true,
       tooltipText = getDistanceTooltipText(),
@@ -296,7 +360,16 @@ internal constructor(
     if (isMarkedComplete.value || vertices.size <= 1) return null
     val distance = vertices.penult().distanceTo(vertices.last())
     if (distance < TOOLTIP_MIN_DISTANCE_METERS) return null
-    return localeAwareMeasureFormatter.formatDistance(distance)
+    return localeAwareMeasureFormatter.formatDistance(distance, getLengthUnit())
+  }
+
+  private fun getLengthUnit(): MeasureUnit {
+    val unit = localValueStore.selectedLengthUnit
+    return when (unit) {
+      Constants.LENGTH_UNIT_METER -> MeasureUnit.METER
+      Constants.LENGTH_UNIT_FEET -> MeasureUnit.FOOT
+      else -> error("Unknown distance unit: $unit")
+    }
   }
 
   override fun validate(task: Task, taskData: TaskData?): Int? {

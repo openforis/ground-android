@@ -27,6 +27,8 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 import org.groundplatform.android.R
 import org.groundplatform.android.coroutines.IoDispatcher
+import org.groundplatform.android.model.map.Bounds
+import org.groundplatform.android.model.map.CameraPosition
 import org.groundplatform.android.repository.LocationOfInterestRepository
 import org.groundplatform.android.repository.MapStateRepository
 import org.groundplatform.android.repository.OfflineAreaRepository
@@ -37,8 +39,6 @@ import org.groundplatform.android.system.PermissionsManager
 import org.groundplatform.android.system.SettingsManager
 import org.groundplatform.android.ui.common.BaseMapViewModel
 import org.groundplatform.android.ui.common.SharedViewModel
-import org.groundplatform.android.ui.map.Bounds
-import org.groundplatform.android.ui.map.CameraPosition
 import org.groundplatform.android.util.toMb
 import org.groundplatform.android.util.toMbString
 import timber.log.Timber
@@ -162,7 +162,9 @@ internal constructor(
   }
 
   private suspend fun updateDownloadSize(bounds: Bounds) {
+    Timber.d("Checking imagery availability for bounds: $bounds")
     if (!offlineAreaRepository.hasHiResImagery(bounds)) {
+      Timber.d("No hi-res imagery available for selected area")
       onUnavailableAreaSelected()
       return
     }
@@ -170,9 +172,12 @@ internal constructor(
       resources.getString(R.string.selected_offline_area_size, offlineAreaSizeLoadingSymbol)
     )
     val sizeInMb = offlineAreaRepository.estimateSizeOnDisk(bounds).toMb()
+    Timber.d("Estimated download size: ${sizeInMb}MB")
     if (sizeInMb > MAX_AREA_DOWNLOAD_SIZE_MB) {
+      Timber.d("Area too large: ${sizeInMb}MB > ${MAX_AREA_DOWNLOAD_SIZE_MB}MB")
       onLargeAreaSelected()
     } else {
+      Timber.d("Area downloadable: ${sizeInMb}MB, enabling download button")
       onDownloadableAreaSelected(sizeInMb)
     }
   }

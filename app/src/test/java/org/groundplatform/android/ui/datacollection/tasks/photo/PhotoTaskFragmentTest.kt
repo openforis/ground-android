@@ -51,18 +51,18 @@ class PhotoTaskFragmentTest : BaseTaskFragmentTest<PhotoTaskFragment, PhotoTaskV
   override fun setUp() {
     super.setUp()
 
-    whenever(dataCollectionViewModel.surveyId).thenReturn("test survey id")
+    whenever(dataCollectionViewModel.requireSurveyId()).thenReturn("test survey id")
   }
 
   @Test
-  fun testHeader() {
+  fun `displays task header correctly`() {
     setupTaskFragment<PhotoTaskFragment>(job, task)
 
     hasTaskViewWithHeader(task)
   }
 
   @Test
-  fun testActionButtons() {
+  fun `action buttons`() {
     setupTaskFragment<PhotoTaskFragment>(job, task)
 
     assertFragmentHasButtons(
@@ -74,7 +74,7 @@ class PhotoTaskFragmentTest : BaseTaskFragmentTest<PhotoTaskFragment, PhotoTaskV
   }
 
   @Test
-  fun testActionButtons_whenTaskIsOptional() {
+  fun `action buttons when task is optional`() {
     setupTaskFragment<PhotoTaskFragment>(job, task.copy(isRequired = false))
 
     runner()
@@ -84,7 +84,7 @@ class PhotoTaskFragmentTest : BaseTaskFragmentTest<PhotoTaskFragment, PhotoTaskV
   }
 
   @Test
-  fun testActionButtons_whenTaskIsRequired() {
+  fun `action buttons when task is required`() {
     setupTaskFragment<PhotoTaskFragment>(job, task.copy(isRequired = true))
 
     runner()

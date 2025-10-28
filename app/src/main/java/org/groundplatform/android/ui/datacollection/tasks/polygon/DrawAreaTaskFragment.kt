@@ -24,13 +24,15 @@ import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import javax.inject.Provider
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
 import org.groundplatform.android.R
 import org.groundplatform.android.databinding.FragmentDrawAreaTaskBinding
 import org.groundplatform.android.model.geometry.LineString
 import org.groundplatform.android.model.geometry.LineString.Companion.lineStringOf
 import org.groundplatform.android.model.submission.isNotNullOrEmpty
-import org.groundplatform.android.ui.compose.ConfirmationDialog
+import org.groundplatform.android.ui.components.ConfirmationDialog
 import org.groundplatform.android.ui.datacollection.components.ButtonAction
 import org.groundplatform.android.ui.datacollection.components.InstructionsDialog
 import org.groundplatform.android.ui.datacollection.components.TaskButton
@@ -92,11 +94,15 @@ class DrawAreaTaskFragment @Inject constructor() : AbstractTaskFragment<DrawArea
     addPointButton =
       addButton(ButtonAction.ADD_POINT).setOnClickListener {
         viewModel.addLastVertex()
-        viewModel.checkVertexIntersection()
-        viewModel.triggerVibration()
+        val intersected = viewModel.checkVertexIntersection()
+        if (!intersected) viewModel.triggerVibration()
       }
     completeButton =
-      addButton(ButtonAction.COMPLETE).setOnClickListener { viewModel.completePolygon() }
+      addButton(ButtonAction.COMPLETE).setOnClickListener {
+        if (viewModel.validatePolygonCompletion()) {
+          viewModel.completePolygon()
+        }
+      }
   }
 
   /** Removes the last vertex from the polygon. */
@@ -119,8 +125,11 @@ class DrawAreaTaskFragment @Inject constructor() : AbstractTaskFragment<DrawArea
   }
 
   override fun onTaskViewAttached() {
+    onFeatureUpdated(null)
     viewLifecycleOwner.lifecycleScope.launch {
-      viewModel.draftArea.collectLatest { onFeatureUpdated(it) }
+      merge(viewModel.draftArea, viewModel.draftUpdates)
+        .filterNotNull()
+        .collectLatest(::onFeatureUpdated)
     }
   }
 
@@ -157,10 +166,12 @@ class DrawAreaTaskFragment @Inject constructor() : AbstractTaskFragment<DrawArea
     val closed = geometry.isClosed()
     val markedComplete = viewModel.isMarkedComplete()
     val tooClose = viewModel.isTooClose.value
+    val selfIntersecting = viewModel.hasSelfIntersection
 
     addPointButton.showIfTrue(!closed)
     addPointButton.enableIfTrue(!closed && !tooClose)
     completeButton.showIfTrue(closed && !markedComplete)
+    completeButton.enableIfTrue(closed && !markedComplete && !selfIntersecting)
     nextButton.showIfTrue(markedComplete)
   }
 
