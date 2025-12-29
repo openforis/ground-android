@@ -78,11 +78,9 @@ android {
         applicationId "org.openforis.ground"
         minSdkVersion rootProject.androidMinSdk
         targetSdkVersion rootProject.androidTargetSdk
-        // TODO: Calculate version code manually
-        // Issue URL: https://github.com/google/ground-android/pull/985
-        versionCode 36
-        versionName "0.2.3"
 
+        versionCode 40
+        versionName "0.3.3"
         multiDexEnabled = true
         // For rendering vector map markers.
         vectorDrawables.useSupportLibrary = true
