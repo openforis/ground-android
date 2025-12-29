@@ -52,6 +52,7 @@ import org.groundplatform.android.ui.theme.AppTheme
 const val MULTIPLE_CHOICE_ITEM_TEST_TAG = "multiple choice item test tag"
 const val OTHER_INPUT_TEXT_TEST_TAG = "other input test tag"
 const val SELECT_MULTIPLE_RADIO_TEST_TAG = "select multiple radio test tag"
+const val SELECT_MULTIPLE_CHECKBOX_TEST_TAG = "select multiple checkbox test tag"
 
 /**
  * A composable function that displays a single item in a multiple-choice list.
@@ -95,7 +96,11 @@ fun MultipleChoiceItemView(
         }
 
         MultipleChoice.Cardinality.SELECT_MULTIPLE -> {
-          Checkbox(checked = item.isSelected, onCheckedChange = { toggleItem(item) })
+          Checkbox(
+            modifier = Modifier.testTag(SELECT_MULTIPLE_CHECKBOX_TEST_TAG),
+            checked = item.isSelected,
+            onCheckedChange = { toggleItem(item) },
+          )
         }
       }
 
@@ -151,7 +156,7 @@ private fun MultipleChoiceItem.toTextLabel() =
 @Preview(backgroundColor = 0xFFFFFFFF, showBackground = true)
 @Composable
 @ExcludeFromJacocoGeneratedReport
-fun SelectOneListItemPreview() {
+private fun SelectOneListItemPreview() {
   AppTheme {
     MultipleChoiceItemView(
       item =
@@ -167,7 +172,7 @@ fun SelectOneListItemPreview() {
 @Preview(backgroundColor = 0xFFFFFFFF, showBackground = true)
 @Composable
 @ExcludeFromJacocoGeneratedReport
-fun SelectMultipleListItemPreview() {
+private fun SelectMultipleListItemPreview() {
   AppTheme {
     MultipleChoiceItemView(
       item =
@@ -183,7 +188,7 @@ fun SelectMultipleListItemPreview() {
 @Preview(backgroundColor = 0xFFFFFFFF, showBackground = true)
 @Composable
 @ExcludeFromJacocoGeneratedReport
-fun SelectOneOtherListItemPreview() {
+private fun SelectOneOtherListItemPreview() {
   AppTheme {
     MultipleChoiceItemView(
       item =
@@ -201,7 +206,7 @@ fun SelectOneOtherListItemPreview() {
 @Preview(backgroundColor = 0xFFFFFFFF, showBackground = true)
 @Composable
 @ExcludeFromJacocoGeneratedReport
-fun SelectMultipleOtherListItemPreview() {
+private fun SelectMultipleOtherListItemPreview() {
   AppTheme {
     MultipleChoiceItemView(
       item =

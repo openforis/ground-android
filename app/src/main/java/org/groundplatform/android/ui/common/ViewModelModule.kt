@@ -39,8 +39,8 @@ import org.groundplatform.android.ui.main.MainViewModel
 import org.groundplatform.android.ui.offlineareas.OfflineAreasViewModel
 import org.groundplatform.android.ui.offlineareas.selector.OfflineAreaSelectorViewModel
 import org.groundplatform.android.ui.offlineareas.viewer.OfflineAreaViewerViewModel
+import org.groundplatform.android.ui.settings.SettingsViewModel
 import org.groundplatform.android.ui.signin.SignInViewModel
-import org.groundplatform.android.ui.startup.StartupViewModel
 import org.groundplatform.android.ui.surveyselector.SurveySelectorViewModel
 import org.groundplatform.android.ui.syncstatus.SyncStatusViewModel
 import org.groundplatform.android.ui.tos.TermsOfServiceViewModel
@@ -160,8 +160,8 @@ abstract class ViewModelModule {
 
   @Binds
   @IntoMap
-  @ViewModelKey(StartupViewModel::class)
-  abstract fun bindStartupViewModel(viewModel: StartupViewModel): ViewModel
+  @ViewModelKey(SettingsViewModel::class)
+  abstract fun bindSettingsViewModel(viewModel: SettingsViewModel): ViewModel
 
   @Binds abstract fun bindViewModelFactory(factory: ViewModelFactory): ViewModelProvider.Factory
 }

@@ -120,7 +120,7 @@ internal constructor(
   private suspend fun onSurveyActivationFailed(error: Throwable? = null) {
     Timber.e(error, "Failed to activate survey")
     surveyActivationInProgress = false
-    _uiState.emit(UiState.Error)
+    _uiState.emit(UiState.Error(error))
   }
 
   fun signOut() {
@@ -135,7 +135,8 @@ internal constructor(
         when {
           it.availableOffline -> "onDevice"
           it.generalAccess == Survey.GeneralAccess.PUBLIC -> "public"
-          it.generalAccess == Survey.GeneralAccess.RESTRICTED ||
+          it.generalAccess == Survey.GeneralAccess.GENERAL_ACCESS_UNSPECIFIED ||
+            it.generalAccess == Survey.GeneralAccess.RESTRICTED ||
             it.generalAccess == Survey.GeneralAccess.UNLISTED -> "sharedWith"
           else -> "other"
         }

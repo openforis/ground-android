@@ -26,8 +26,7 @@
   <fragment
     android:id="@+id/startup_fragment"
     android:name="org.groundplatform.android.ui.startup.StartupFragment"
-    android:label="startup_frag"
-    tools:layout="@layout/startup_frag">
+    android:label="startup_frag">
     <action
       android:id="@+id/proceedToSignInScreen"
       app:destination="@id/sign_in_fragment"
@@ -210,8 +209,7 @@
   <fragment
     android:id="@+id/sign_in_fragment"
     android:name="org.groundplatform.android.ui.signin.SignInFragment"
-    android:label="sign_in_frag"
-    tools:layout="@layout/sign_in_frag">
+    android:label="sign_in_frag">
     <action
       android:id="@+id/showTermsOfService"
       app:destination="@id/terms_of_service_fragment"
