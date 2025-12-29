@@ -78,8 +78,8 @@ android {
         minSdkVersion rootProject.androidMinSdk
         targetSdkVersion rootProject.androidTargetSdk
 
-        versionCode getGitCommitCount()
-        versionName "${getGitBranchName()}-${getGitHash()}-debug"
+        versionCode 40
+        versionName "0.3.3"
 
         multiDexEnabled = true
         // For rendering vector map markers.
