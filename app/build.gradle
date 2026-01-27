@@ -79,8 +79,8 @@ android {
         minSdkVersion rootProject.androidMinSdk
         targetSdkVersion rootProject.androidTargetSdk
 
-        versionCode 40
-        versionName "0.3.3"
+        versionCode 45
+        versionName "0.3.6"
         multiDexEnabled = true
         // For rendering vector map markers.
         vectorDrawables.useSupportLibrary = true
@@ -167,16 +167,12 @@ android {
         }
         animationsDisabled = true
     }
-<<<<<<< HEAD
-    namespace 'com.google.android.ground'
-=======
 
     room {
         schemaDirectory("$projectDir/schemas")
     }
 
     namespace = 'org.groundplatform.android'
->>>>>>> 498dc549ebc0ee5bc4c055ff8124b039b12d9baf
 }
 
 configurations {
