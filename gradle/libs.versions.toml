@@ -16,7 +16,7 @@
 androidMapsUtilsVersion = "3.8.2"
 appcompatVersion = "1.7.1"
 autoValueVersion = "1.11.1"
-composeBom = "2025.12.01"
+composeBom = "2026.01.00"
 constraintlayoutVersion = "2.2.1"
 coreKtxVersion = "1.17.0"
 coreTesting = "2.2.0"
@@ -34,12 +34,12 @@ gradleVersion = "8.13.2"
 groundPlatformVersion = "bc2596d"
 gsonVersion = "2.13.2"
 hiltJetpackVersion = "1.3.0"
-hiltVersion = "2.57.2"
+hiltVersion = "2.58"
 jsonVersion = "20251224"
 junitKtx = "1.3.0"
 junitVersion = "4.13.2"
 kotlinVersion = "2.3.0"
-kotlinxBom = "1.9.0"
+kotlinxBom = "1.10.0"
 kspVersion = "2.3.4"
 kotlinxCollectionsImmutable = "0.4.0"
 ktfmtVersion = "0.25.0"
@@ -48,19 +48,19 @@ markdownVersion = "0.7.3"
 materialVersion = "1.13.0"
 mockitoBom = "5.21.0"
 mockitoInlineVersion = "5.2.0"
-mockitoKotlinVersion = "6.1.0"
+mockitoKotlinVersion = "6.2.3"
 multidex = "2.0.1"
 navigationKtxVersion = "2.9.6"
 orchestratorVersion = "1.6.1"
 ossLicensesPluginVersion = "0.10.10"
 perfPluginVersion = "2.0.2"
 playServicesAuthVersion = "21.3.0"
-playServicesMapsVersion = "19.2.0"
+playServicesMapsVersion = "20.0.0"
 playServicesOssLicensesVersion = "17.3.0"
 preferenceKtx = "1.2.1"
 protobufKotlinLiteVersion = "4.26.1"
 protobufVersion = "0.9.6"
-robolectricVersion = "4.16"
+robolectricVersion = "4.16.1"
 roomVersion = "2.8.4"
 secretsGradlePluginVersion = "2.0.1"
 testingVersion = "1.3.0"
@@ -75,12 +75,15 @@ android-maps-utils = { module = "com.google.maps.android:android-maps-utils", ve
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompatVersion" }
 androidx-constraintlayout = { module = "androidx.constraintlayout:constraintlayout", version.ref = "constraintlayoutVersion" }
 androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
+androidx-compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4" }
 androidx-core = { module = "androidx.test:core", version.ref = "coreVersion" }
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtxVersion" }
 androidx-core-testing = { module = "androidx.arch.core:core-testing", version.ref = "coreTesting" }
 androidx-espresso-contrib = { module = "androidx.test.espresso:espresso-contrib", version.ref = "espressoContribVersion" }
 androidx-espresso-core = { module = "androidx.test.espresso:espresso-core", version.ref = "espressoContribVersion" }
+androidx-espresso-intents = { module = "androidx.test.espresso:espresso-intents", version.ref = "espressoContribVersion" }
 androidx-fragment-testing-manifest = { module = "androidx.fragment:fragment-testing-manifest", version.ref = "fragmentVersion" }
+androidx-hilt-navigation-compose = { module = "androidx.hilt:hilt-navigation-compose", version.ref = "hiltJetpackVersion" }
 androidx-hilt-navigation-fragment = { module = "androidx.hilt:hilt-navigation-fragment", version.ref = "hiltJetpackVersion" }
 androidx-hilt-work = { module = "androidx.hilt:hilt-work", version.ref = "hiltJetpackVersion" }
 androidx-junit = { module = "androidx.test.ext:junit", version.ref = "junitKtx" }
@@ -88,6 +91,7 @@ androidx-lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtim
 androidx-material-icons = { module = "androidx.compose.material:material-icons-core" }
 androidx-material3-android = { module = "androidx.compose.material3:material3-android" }
 androidx-multidex = { module = "androidx.multidex:multidex", version.ref = "multidex" }
+androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigationKtxVersion" }
 androidx-navigation-safe-args-gradle-plugin = { module = "androidx.navigation:navigation-safe-args-gradle-plugin", version.ref = "navigationKtxVersion" }
 androidx-navigation-testing = { module = "androidx.navigation:navigation-testing", version.ref = "navigationKtxVersion" }
 androidx-navigation-ui-ktx = { module = "androidx.navigation:navigation-ui-ktx", version.ref = "navigationKtxVersion" }
