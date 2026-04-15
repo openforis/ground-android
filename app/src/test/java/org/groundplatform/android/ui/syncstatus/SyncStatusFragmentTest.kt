@@ -16,6 +16,7 @@
 package org.groundplatform.android.ui.syncstatus
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.espresso.Espresso.onView
@@ -37,10 +38,11 @@ import org.groundplatform.android.data.local.stores.LocalSubmissionStore
 import org.groundplatform.android.data.local.stores.LocalSurveyStore
 import org.groundplatform.android.data.local.stores.LocalUserStore
 import org.groundplatform.android.data.remote.FakeRemoteDataStore
-import org.groundplatform.android.launchFragmentInHiltContainer
-import org.groundplatform.android.model.geometry.Coordinates
-import org.groundplatform.android.model.geometry.Point
 import org.groundplatform.android.repository.SurveyRepository
+import org.groundplatform.android.testrules.FragmentScenarioRule
+import org.groundplatform.domain.model.geometry.Coordinates
+import org.groundplatform.domain.model.geometry.Point
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -49,6 +51,8 @@ import org.robolectric.RobolectricTestRunner
 @HiltAndroidTest
 @RunWith(RobolectricTestRunner::class)
 class SyncStatusFragmentTest : BaseHiltTest() {
+  @get:Rule val composeTestRule = createComposeRule()
+  @get:Rule val fragmentScenario = FragmentScenarioRule()
 
   @Inject lateinit var fakeRemoteDataStore: FakeRemoteDataStore
   @Inject lateinit var localLoiStore: LocalLocationOfInterestStore
@@ -114,7 +118,7 @@ class SyncStatusFragmentTest : BaseHiltTest() {
   }
 
   private fun setupFragment() = runWithTestDispatcher {
-    launchFragmentInHiltContainer<SyncStatusFragment>()
+    fragmentScenario.launchFragmentInHiltContainer<SyncStatusFragment>()
     advanceUntilIdle()
   }
 }

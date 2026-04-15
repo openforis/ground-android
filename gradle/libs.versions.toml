@@ -13,50 +13,58 @@
 # limitations under the License.
 
 [versions]
-androidMapsUtilsVersion = "3.8.2"
+androidCompileSdk = "36"
+androidMinSdk = "24"
+androidTargetSdk = "36"
+androidMapsUtilsVersion = "4.1.1"
+androidXLifecycleVersion = "2.10.0"
 appcompatVersion = "1.7.1"
 autoValueVersion = "1.11.1"
-composeBom = "2026.01.00"
+coilComposeVersion = "2.7.0"
+composeBom = "2026.03.01"
+composeMultiplatformVersion = "1.10.3"
 constraintlayoutVersion = "2.2.1"
-coreKtxVersion = "1.17.0"
+coreKtxVersion = "1.18.0"
 coreTesting = "2.2.0"
 coreTestingVersion = "1.1.1"
 coreVersion = "1.7.0"
 coroutinesVersion = "1.10.2"
 detektVersion = "1.23.8"
 espressoContribVersion = "3.7.0"
-firebaseBomVersion = "33.1.2"
-firebaseCrashlyticsGradleVersion = "3.0.6"
+firebaseBomVersion = "34.12.0"
+firebaseCrashlyticsGradleVersion = "3.0.7"
 fragmentVersion = "1.8.9"
-glideVersion = "5.0.5"
 googleServicesVersion = "4.4.4"
-gradleVersion = "8.13.2"
+googleZxingVersion = "3.5.4"
+gradleVersion = "9.0.1"
 groundPlatformVersion = "bc2596d"
 gsonVersion = "2.13.2"
 hiltJetpackVersion = "1.3.0"
-hiltVersion = "2.58"
+hiltVersion = "2.59.2"
+jvmToolchainVersion = "17"
 jsonVersion = "20251224"
 junitKtx = "1.3.0"
 junitVersion = "4.13.2"
-kotlinVersion = "2.3.0"
-kotlinxBom = "1.10.0"
-kspVersion = "2.3.4"
+kotlinVersion = "2.3.20"
+kotlinxBom = "1.11.0"
+kspVersion = "2.3.6"
 kotlinxCollectionsImmutable = "0.4.0"
-ktfmtVersion = "0.25.0"
+ktfmtVersion = "0.26.0"
 lifecycleVersion = "2.10.0"
 markdownVersion = "0.7.3"
 materialVersion = "1.13.0"
-mockitoBom = "5.21.0"
+material3Version = "1.9.0"
+mockitoBom = "5.23.0"
 mockitoInlineVersion = "5.2.0"
-mockitoKotlinVersion = "6.2.3"
+mockitoKotlinVersion = "6.3.0"
 multidex = "2.0.1"
-navigationKtxVersion = "2.9.6"
+navigationKtxVersion = "2.9.7"
 orchestratorVersion = "1.6.1"
-ossLicensesPluginVersion = "0.10.10"
+ossLicensesPluginVersion = "0.11.0"
 perfPluginVersion = "2.0.2"
 playServicesAuthVersion = "21.3.0"
 playServicesMapsVersion = "20.0.0"
-playServicesOssLicensesVersion = "17.3.0"
+playServicesOssLicensesVersion = "17.5.0"
 preferenceKtx = "1.2.1"
 protobufKotlinLiteVersion = "4.26.1"
 protobufVersion = "0.9.6"
@@ -68,13 +76,14 @@ timberVersion = "5.0.1"
 truthVersion = "1.4.5"
 turbineVersion = "1.2.1"
 uiautomatorVersion = "2.3.0"
-workVersion = "2.11.0"
+workVersion = "2.11.2"
 
 [libraries]
 android-maps-utils = { module = "com.google.maps.android:android-maps-utils", version.ref = "androidMapsUtilsVersion" }
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompatVersion" }
 androidx-constraintlayout = { module = "androidx.constraintlayout:constraintlayout", version.ref = "constraintlayoutVersion" }
 androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
+coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coilComposeVersion" }
 androidx-compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4" }
 androidx-core = { module = "androidx.test:core", version.ref = "coreVersion" }
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtxVersion" }
@@ -122,14 +131,13 @@ firebase-auth = { module = "com.google.firebase:firebase-auth" }
 firebase-crashlytics-gradle = { module = "com.google.firebase:firebase-crashlytics-gradle", version.ref = "firebaseCrashlyticsGradleVersion" }
 firebase-firestore = { module = "com.google.firebase:firebase-firestore" }
 firebase-analytics = { module = "com.google.firebase:firebase-analytics" }
-firebase-messaging-ktx = { module = "com.google.firebase:firebase-messaging-ktx" }
-firebase-messaging-directboot = { module = "com.google.firebase:firebase-messaging-directboot" }
 firebase-messaging = { module = "com.google.firebase:firebase-messaging" }
+firebase-messaging-directboot = { module = "com.google.firebase:firebase-messaging-directboot" }
 firebase-storage = { module = "com.google.firebase:firebase-storage" }
 firebase-perf = { module = "com.google.firebase:firebase-perf" }
-firebase-functions-ktx = { module = "com.google.firebase:firebase-functions-ktx" }
-glide = { module = "com.github.bumptech.glide:glide", version.ref = "glideVersion" }
+firebase-functions = { module = "com.google.firebase:firebase-functions" }
 google-services = { module = "com.google.gms:google-services", version.ref = "googleServicesVersion" }
+google-zxing = { module = "com.google.zxing:core", version.ref = "googleZxingVersion" }
 gradle = { module = "com.android.tools.build:gradle", version.ref = "gradleVersion" }
 ground-platform = { module = "com.github.google:ground-platform", version.ref = "groundPlatformVersion" }
 gson = { module = "com.google.code.gson:gson", version.ref = "gsonVersion" }
@@ -147,10 +155,10 @@ kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotl
 kotlinx-collections-immutable = { module = "org.jetbrains.kotlinx:kotlinx-collections-immutable", version.ref = "kotlinxCollectionsImmutable" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android" }
 kotlinx-coroutines-bom = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-bom", version.ref = "coroutinesVersion" }
-kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core" }
-kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutinesVersion" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutinesVersion" }
 kotlinx-serialization-bom = { module = "org.jetbrains.kotlinx:kotlinx-serialization-bom", version.ref = "kotlinxBom" }
-kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxBom" }
 kotlinx-serialization-protobuf = { module = "org.jetbrains.kotlinx:kotlinx-serialization-protobuf" }
 markdown = { module = "org.jetbrains:markdown", version.ref = "markdownVersion" }
 material = { module = "com.google.android.material:material", version.ref = "materialVersion" }
@@ -172,9 +180,19 @@ testing = { module = "com.jraska.livedata:testing", version.ref = "testingVersio
 timber = { module = "com.jakewharton.timber:timber", version.ref = "timberVersion" }
 truth = { module = "com.google.truth:truth", version.ref = "truthVersion" }
 turbine = { module = "app.cash.turbine:turbine", version.ref = "turbineVersion" }
+#Multiplatform
+androidx-lifecycle-runtime-compose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose", version.ref = "androidXLifecycleVersion" }
+compose-components-resources = { module = "org.jetbrains.compose.components:components-resources", version.ref = "composeMultiplatformVersion" }
+compose-foundation = { module = "org.jetbrains.compose.foundation:foundation", version.ref = "composeMultiplatformVersion" }
+compose-material3 = { module = "org.jetbrains.compose.material3:material3", version.ref = "material3Version" }
+compose-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "composeMultiplatformVersion" }
+compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "composeMultiplatformVersion" }
+compose-ui-tooling = { module = "org.jetbrains.compose.ui:ui-tooling", version.ref = "composeMultiplatformVersion" }
+compose-ui-tooling-preview = { module = "org.jetbrains.compose.ui:ui-tooling-preview", version.ref = "composeMultiplatformVersion" }
 
 [plugins]
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlinVersion" }
+compose-multiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatformVersion" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlinVersion" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlinVersion" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "kspVersion" }
@@ -183,3 +201,6 @@ hilt-android = { id = "com.google.dagger.hilt.android", version.ref = "hiltVersi
 detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detektVersion" }
 protobuf = { id = "com.google.protobuf", version.ref = "protobufVersion" }
 room = { id = "androidx.room", version.ref = "roomVersion" }
+kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlinVersion" }
+android-kotlin-multiplatform-library = { id = "com.android.kotlin.multiplatform.library", version.ref = "gradleVersion" }
+android-lint = { id = "com.android.lint", version.ref = "gradleVersion" }

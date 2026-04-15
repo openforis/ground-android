@@ -15,60 +15,25 @@
  */
 package org.groundplatform.android.ui.datacollection.tasks.instruction
 
+import android.os.Bundle
 import android.view.LayoutInflater
-import android.view.View
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import android.view.ViewGroup
 import dagger.hilt.android.AndroidEntryPoint
-import org.groundplatform.android.ui.common.ExcludeFromJacocoGeneratedReport
-import org.groundplatform.android.ui.datacollection.components.ButtonAction
-import org.groundplatform.android.ui.datacollection.components.TaskView
-import org.groundplatform.android.ui.datacollection.components.TaskViewFactory
 import org.groundplatform.android.ui.datacollection.tasks.AbstractTaskFragment
 import org.groundplatform.android.util.createComposeView
 
 @AndroidEntryPoint
 class InstructionTaskFragment : AbstractTaskFragment<InstructionTaskViewModel>() {
 
-  override fun onCreateTaskView(inflater: LayoutInflater): TaskView =
-    TaskViewFactory.createWithoutHeader(inflater)
-
-  override fun onCreateTaskBody(inflater: LayoutInflater): View = createComposeView {
-    ShowTextField()
+  override fun onCreateView(
+    inflater: LayoutInflater,
+    container: ViewGroup?,
+    savedInstanceState: Bundle?,
+  ) = createComposeView {
+    InstructionTaskScreen(
+      viewModel = viewModel,
+      onFooterPositionUpdated = { saveFooterPosition(it) },
+      onAction = { handleTaskScreenAction(it) },
+    )
   }
-
-  override fun onCreateActionButtons() {
-    addButton(ButtonAction.NEXT).setOnClickListener { moveToNext() }
-  }
-
-  @Composable
-  private fun ShowTextField() {
-    Box(
-      modifier =
-        Modifier.fillMaxSize()
-          .background(color = Color.White)
-          .border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp))
-          .padding(16.dp)
-    ) {
-      Text(text = viewModel.task.label, fontSize = 24.sp)
-    }
-  }
-
-  @Composable
-  @Preview(showBackground = true)
-  @ExcludeFromJacocoGeneratedReport
-  private fun PreviewTextField() = ShowTextField()
 }

@@ -24,10 +24,10 @@ import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import org.groundplatform.android.R
-import org.groundplatform.android.coroutines.IoDispatcher
-import org.groundplatform.android.model.geometry.Coordinates
-import org.groundplatform.android.model.map.Bounds
+import org.groundplatform.android.di.coroutines.IoDispatcher
 import org.groundplatform.android.ui.map.gms.GmsExt.center
+import org.groundplatform.domain.model.geometry.Coordinates
+import org.groundplatform.domain.model.map.Bounds
 import timber.log.Timber
 
 /** Abstracts native geocoding facilities. */

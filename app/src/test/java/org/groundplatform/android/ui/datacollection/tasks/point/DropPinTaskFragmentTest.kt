@@ -19,17 +19,18 @@ import dagger.hilt.android.testing.BindValue
 import dagger.hilt.android.testing.HiltAndroidTest
 import javax.inject.Inject
 import org.groundplatform.android.data.local.LocalValueStore
-import org.groundplatform.android.model.geometry.Coordinates
-import org.groundplatform.android.model.geometry.Point
-import org.groundplatform.android.model.job.Job
-import org.groundplatform.android.model.job.Style
 import org.groundplatform.android.model.map.CameraPosition
-import org.groundplatform.android.model.submission.DropPinTaskData
-import org.groundplatform.android.model.task.Task
 import org.groundplatform.android.ui.common.ViewModelFactory
 import org.groundplatform.android.ui.datacollection.DataCollectionViewModel
 import org.groundplatform.android.ui.datacollection.components.ButtonAction
+import org.groundplatform.android.ui.datacollection.components.ButtonActionState
 import org.groundplatform.android.ui.datacollection.tasks.BaseTaskFragmentTest
+import org.groundplatform.domain.model.geometry.Coordinates
+import org.groundplatform.domain.model.geometry.Point
+import org.groundplatform.domain.model.job.Job
+import org.groundplatform.domain.model.job.Style
+import org.groundplatform.domain.model.submission.DropPinTaskData
+import org.groundplatform.domain.model.task.Task
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -108,37 +109,28 @@ class DropPinTaskFragmentTest : BaseTaskFragmentTest<DropPinTaskFragment, DropPi
   }
 
   @Test
-  fun `has expected action buttons`() {
+  fun `Initial action buttons state when task is optional`() {
     setupTaskFragment<DropPinTaskFragment>(job, task)
 
     assertFragmentHasButtons(
-      ButtonAction.PREVIOUS,
-      ButtonAction.SKIP,
-      ButtonAction.UNDO,
-      ButtonAction.DROP_PIN,
-      ButtonAction.NEXT,
+      ButtonActionState(ButtonAction.PREVIOUS, isEnabled = true, isVisible = true),
+      ButtonActionState(ButtonAction.SKIP, isEnabled = true, isVisible = true),
+      ButtonActionState(ButtonAction.UNDO, isEnabled = false, isVisible = false),
+      ButtonActionState(ButtonAction.DROP_PIN, isEnabled = true, isVisible = true),
+      ButtonActionState(ButtonAction.NEXT, isEnabled = false, isVisible = false),
     )
   }
 
   @Test
-  fun `shows skip when task is optional`() {
-    setupTaskFragment<DropPinTaskFragment>(job, task.copy(isRequired = false))
-
-    runner()
-      .assertButtonIsHidden("Next")
-      .assertButtonIsEnabled("Skip")
-      .assertButtonIsHidden("Undo", true)
-      .assertButtonIsEnabled("Drop pin")
-  }
-
-  @Test
-  fun `hides skip when task is required`() {
+  fun `Initial action buttons state when task is required`() {
     setupTaskFragment<DropPinTaskFragment>(job, task.copy(isRequired = true))
 
-    runner()
-      .assertButtonIsHidden("Next")
-      .assertButtonIsHidden("Skip")
-      .assertButtonIsHidden("Undo", true)
-      .assertButtonIsEnabled("Drop pin")
+    assertFragmentHasButtons(
+      ButtonActionState(ButtonAction.PREVIOUS, isEnabled = true, isVisible = true),
+      ButtonActionState(ButtonAction.SKIP, isEnabled = false, isVisible = false),
+      ButtonActionState(ButtonAction.UNDO, isEnabled = false, isVisible = false),
+      ButtonActionState(ButtonAction.DROP_PIN, isEnabled = true, isVisible = true),
+      ButtonActionState(ButtonAction.NEXT, isEnabled = false, isVisible = false),
+    )
   }
 }

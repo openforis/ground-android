@@ -26,7 +26,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.groundplatform.android.BaseHiltTest
-import org.groundplatform.android.repository.LocationOfInterestRepository
 import org.groundplatform.android.repository.MapStateRepository
 import org.groundplatform.android.repository.OfflineAreaRepository
 import org.groundplatform.android.repository.SurveyRepository
@@ -35,19 +34,18 @@ import org.groundplatform.android.system.LocationManager
 import org.groundplatform.android.system.PermissionsManager
 import org.groundplatform.android.system.SettingsManager
 import org.groundplatform.android.ui.components.MapFloatingActionButtonType
+import org.groundplatform.domain.repository.LocationOfInterestRepositoryInterface
 import org.junit.Assert.assertEquals
-import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mock
-import org.mockito.MockitoAnnotations
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @HiltAndroidTest
 @RunWith(RobolectricTestRunner::class)
+@OptIn(ExperimentalCoroutinesApi::class)
 class BaseMapViewModelTest : BaseHiltTest() {
 
   @Mock lateinit var locationManager: LocationManager
@@ -56,14 +54,9 @@ class BaseMapViewModelTest : BaseHiltTest() {
   @Mock lateinit var offlineAreaRepository: OfflineAreaRepository
   @Mock lateinit var permissionsManager: PermissionsManager
   @Mock lateinit var surveyRepository: SurveyRepository
-  @Mock lateinit var locationOfInterestRepository: LocationOfInterestRepository
+  @Mock lateinit var locationOfInterestRepository: LocationOfInterestRepositoryInterface
 
   private lateinit var viewModel: BaseMapViewModel
-
-  @Before
-  fun setup() {
-    MockitoAnnotations.openMocks(this)
-  }
 
   @Test
   fun `Should display the correct location icon and hide the recenter button when the location is locked`() =

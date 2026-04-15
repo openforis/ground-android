@@ -15,44 +15,26 @@
  */
 package org.groundplatform.android.ui.datacollection.tasks.number
 
+import android.os.Bundle
 import android.view.LayoutInflater
-import android.view.View
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.livedata.observeAsState
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.input.KeyboardType
+import android.view.ViewGroup
 import dagger.hilt.android.AndroidEntryPoint
-import org.groundplatform.android.model.submission.NumberTaskData.Companion.fromNumber
-import org.groundplatform.android.ui.datacollection.components.TaskView
-import org.groundplatform.android.ui.datacollection.components.TaskViewFactory
-import org.groundplatform.android.ui.datacollection.components.TextTaskInput
 import org.groundplatform.android.ui.datacollection.tasks.AbstractTaskFragment
 import org.groundplatform.android.util.createComposeView
-
-const val INPUT_NUMBER_TEST_TAG: String = "number task input test tag"
 
 /** Fragment allowing the user to answer questions to complete a task. */
 @AndroidEntryPoint
 class NumberTaskFragment : AbstractTaskFragment<NumberTaskViewModel>() {
 
-  override fun onCreateTaskView(inflater: LayoutInflater): TaskView =
-    TaskViewFactory.createWithHeader(layoutInflater)
-
-  override fun onCreateTaskBody(inflater: LayoutInflater): View = createComposeView {
-    ShowTextInputField()
-  }
-
-  @Composable
-  private fun ShowTextInputField() {
-    val userResponse by viewModel.responseText.observeAsState("")
-    TextTaskInput(
-      userResponse,
-      keyboardType = KeyboardType.Decimal,
-      modifier = Modifier.testTag(INPUT_NUMBER_TEST_TAG),
-    ) { newText ->
-      viewModel.setValue(fromNumber(newText))
-    }
+  override fun onCreateView(
+    inflater: LayoutInflater,
+    container: ViewGroup?,
+    savedInstanceState: Bundle?,
+  ) = createComposeView {
+    NumberTaskScreen(
+      viewModel = viewModel,
+      onFooterPositionUpdated = { saveFooterPosition(it) },
+      onAction = { handleTaskScreenAction(it) },
+    )
   }
 }

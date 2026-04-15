@@ -32,13 +32,13 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withTimeout
 import org.groundplatform.android.FirebaseCrashLogger
-import org.groundplatform.android.coroutines.ApplicationScope
 import org.groundplatform.android.data.local.LocalValueStore
 import org.groundplatform.android.data.local.stores.LocalSurveyStore
 import org.groundplatform.android.data.remote.RemoteDataStore
-import org.groundplatform.android.model.Survey
+import org.groundplatform.android.di.coroutines.ApplicationScope
 import org.groundplatform.android.model.SurveyListItem
-import org.groundplatform.android.model.User
+import org.groundplatform.domain.model.Survey
+import org.groundplatform.domain.model.User
 import timber.log.Timber
 
 private const val ACTIVATE_SURVEY_TIMEOUT_MILLS: Long = 3 * 1000

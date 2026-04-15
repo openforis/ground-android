@@ -17,13 +17,15 @@
 package org.groundplatform.android.ui.datacollection
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.navigation.fragment.findNavController
 import com.google.common.truth.Truth.assertThat
 import dagger.hilt.android.testing.BindValue
 import dagger.hilt.android.testing.HiltAndroidTest
-import java.util.Date
 import javax.inject.Inject
+import kotlin.time.Clock
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
@@ -37,28 +39,31 @@ import org.groundplatform.android.R
 import org.groundplatform.android.data.local.room.converter.SubmissionDeltasConverter
 import org.groundplatform.android.data.remote.FakeRemoteDataStore
 import org.groundplatform.android.data.sync.MutationSyncWorkManager
-import org.groundplatform.android.launchFragmentWithNavController
-import org.groundplatform.android.model.geometry.Coordinates
-import org.groundplatform.android.model.geometry.Point
+import org.groundplatform.android.getString
 import org.groundplatform.android.model.map.CameraPosition
-import org.groundplatform.android.model.mutation.Mutation
-import org.groundplatform.android.model.mutation.SubmissionMutation
-import org.groundplatform.android.model.submission.DraftSubmission
-import org.groundplatform.android.model.submission.DropPinTaskData
-import org.groundplatform.android.model.submission.MultipleChoiceTaskData
-import org.groundplatform.android.model.submission.TextTaskData
-import org.groundplatform.android.model.submission.ValueDelta
-import org.groundplatform.android.model.task.Condition
-import org.groundplatform.android.model.task.Expression
-import org.groundplatform.android.model.task.MultipleChoice
-import org.groundplatform.android.model.task.Option
-import org.groundplatform.android.model.task.Task
-import org.groundplatform.android.repository.LocationOfInterestRepository
 import org.groundplatform.android.repository.MutationRepository
 import org.groundplatform.android.repository.SubmissionRepository
-import org.groundplatform.android.repository.UserRepository
+import org.groundplatform.android.testrules.FragmentScenarioRule
 import org.groundplatform.android.ui.datacollection.tasks.point.DropPinTaskViewModel
 import org.groundplatform.android.usecases.survey.ActivateSurveyUseCase
+import org.groundplatform.domain.model.geometry.Coordinates
+import org.groundplatform.domain.model.geometry.Point
+import org.groundplatform.domain.model.mutation.Mutation
+import org.groundplatform.domain.model.mutation.SubmissionMutation
+import org.groundplatform.domain.model.submission.DraftSubmission
+import org.groundplatform.domain.model.submission.DropPinTaskData
+import org.groundplatform.domain.model.submission.MultipleChoiceTaskData
+import org.groundplatform.domain.model.submission.TextTaskData
+import org.groundplatform.domain.model.submission.ValueDelta
+import org.groundplatform.domain.model.task.Condition
+import org.groundplatform.domain.model.task.Expression
+import org.groundplatform.domain.model.task.MultipleChoice
+import org.groundplatform.domain.model.task.Option
+import org.groundplatform.domain.model.task.Task
+import org.groundplatform.domain.repository.LocationOfInterestRepositoryInterface
+import org.groundplatform.domain.repository.UserRepositoryInterface
+import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mock
@@ -69,13 +74,15 @@ import org.robolectric.shadows.ShadowToast
 @HiltAndroidTest
 @RunWith(RobolectricTestRunner::class)
 class DataCollectionFragmentTest : BaseHiltTest() {
+  @get:Rule(order = 4) val composeTestRule = createComposeRule()
+  @get:Rule(order = 5) val fragmentScenario = FragmentScenarioRule()
 
   @Inject lateinit var activateSurvey: ActivateSurveyUseCase
   @Inject lateinit var fakeRemoteDataStore: FakeRemoteDataStore
-  @Inject lateinit var loiRepository: LocationOfInterestRepository
+  @Inject lateinit var loiRepository: LocationOfInterestRepositoryInterface
   @Inject lateinit var mutationRepository: MutationRepository
   @Inject lateinit var submissionRepository: SubmissionRepository
-  @Inject lateinit var userRepository: UserRepository
+  @Inject lateinit var userRepository: UserRepositoryInterface
 
   @BindValue @Mock lateinit var mutationSyncWorkManager: MutationSyncWorkManager
 
@@ -270,6 +277,25 @@ class DataCollectionFragmentTest : BaseHiltTest() {
     }
 
   @Test
+  fun `Does not load draft if it references missing job`() = runWithTestDispatcher {
+    setupFragment()
+
+    runner().inputText(TASK_1_RESPONSE).clickNextButton()
+
+    // Verify draft was saved
+    val draftId = submissionRepository.getDraftSubmissionsId()
+    assertThat(draftId).isNotEmpty()
+    assertThat(submissionRepository.countDraftSubmissions()).isEqualTo(1)
+
+    // Simulate deleting the job from the submission
+    val surveyWithMissingJob = SURVEY.copy(jobMap = emptyMap())
+
+    // Attempt to get draft with the survey that's missing the job
+    val result = submissionRepository.getDraftSubmission(draftId, surveyWithMissingJob)
+    assertThat(result).isNull()
+  }
+
+  @Test
   fun `Clicking done on final task saves the submission`() = runWithTestDispatcher {
     setupFragment()
 
@@ -292,7 +318,7 @@ class DataCollectionFragmentTest : BaseHiltTest() {
   }
 
   @Test
-  fun `Clicking done on final task hides the navigation close button`() = runWithTestDispatcher {
+  fun `Clicking done on final task displays the close button and title`() = runWithTestDispatcher {
     setupFragment()
 
     runner()
@@ -303,7 +329,27 @@ class DataCollectionFragmentTest : BaseHiltTest() {
       .selectOption(TASK_2_OPTION_LABEL)
       .clickDoneButton() // Click "done" on final task
 
-    assertThat(getToolbar()?.navigationIcon).isNull()
+    advanceUntilIdle()
+
+    assertThat(getToolbar()?.navigationIcon).isNotNull()
+    assertThat(getToolbar()?.title).isEqualTo(getString(R.string.data_collection_complete))
+  }
+
+  @Test
+  fun `Back navigation at the end of data collection exits the screen`() = runWithTestDispatcher {
+    setupFragment()
+
+    runner()
+      .inputText(TASK_1_RESPONSE)
+      .clickNextButton()
+      .selectOption(TASK_2_OPTION_LABEL)
+      .clickDoneButton()
+      .pressBackButton()
+
+    advanceUntilIdle()
+
+    assertThat(fragment.findNavController().currentDestination?.id)
+      .isNotEqualTo(R.id.data_collection_fragment)
   }
 
   @Test
@@ -531,17 +577,17 @@ class DataCollectionFragmentTest : BaseHiltTest() {
   fun `Progress bar updates correctly when navigating between tasks`() {
     setupFragment()
 
-    val progressBar = fragment.view?.findViewById<android.widget.ProgressBar>(R.id.progressBar)
-    if (progressBar != null) {
-      // First task (0/1 progress)
-      assertThat(progressBar.progress).isEqualTo(0)
-      assertThat(progressBar.max).isEqualTo(100) // (2-1) * 100
+    val progressBar = fragment.view?.findViewById<android.widget.ProgressBar>(R.id.progress_bar)!!
 
-      runner().inputText(TASK_1_RESPONSE).clickNextButton()
+    // First task (0/1 progress)
+    assertThat(progressBar.progress).isEqualTo(0)
+    assertThat(progressBar.max).isEqualTo(100) // (2-1) * 100
 
-      // Second task (1/1 progress = 100)
-      assertThat(progressBar.progress).isEqualTo(100)
-    }
+    runner().inputText(TASK_1_RESPONSE).clickNextButton()
+    composeTestRule.waitForIdle()
+
+    // Second task (1/1 progress = 100)
+    assertThat(progressBar.progress).isEqualTo(100)
   }
 
   @Test
@@ -629,9 +675,11 @@ class DataCollectionFragmentTest : BaseHiltTest() {
       .selectOption(TASK_2_OPTION_LABEL)
       .clickDoneButton()
 
+    advanceUntilIdle()
+
     // Simulate state after task submission
     val state = fragment.viewModel.uiState.value
-    assertThat(state).isEqualTo(DataCollectionUiState.TaskSubmitted)
+    assertTrue(state is DataCollectionUiState.TaskSubmitted)
   }
 
   @Test
@@ -677,7 +725,7 @@ class DataCollectionFragmentTest : BaseHiltTest() {
         .selectOption(TASK_2_OPTION_CONDITIONAL_LABEL)
         .selectOption(TASK_2_OPTION_LABEL)
         .clickDoneButton()
-        .validateTextIsNotDisplayed(TASK_CONDITIONAL_NAME)
+        .validateTextDoesNotExist(TASK_CONDITIONAL_NAME)
 
       // Conditional task data is not submitted.
       assertSubmissionSaved(listOf(TASK_1_VALUE_DELTA, TASK_2_VALUE_DELTA))
@@ -705,7 +753,7 @@ class DataCollectionFragmentTest : BaseHiltTest() {
     // Exactly 1 submission should be saved.
     assertThat(submissionRepository.getPendingCreateCount(loiId)).isEqualTo(1)
 
-    val testDate = Date()
+    val testDate = Clock.System.now().toEpochMilliseconds()
     val mutation =
       mutationRepository
         .getIncompleteUploads()[0]
@@ -796,7 +844,7 @@ class DataCollectionFragmentTest : BaseHiltTest() {
         .build()
         .toBundle()
 
-    launchFragmentWithNavController<DataCollectionFragment>(
+    fragmentScenario.launchFragmentWithNavController<DataCollectionFragment>(
       argsBundle,
       destId = R.id.data_collection_fragment,
     ) {
@@ -804,7 +852,7 @@ class DataCollectionFragmentTest : BaseHiltTest() {
     }
   }
 
-  private fun runner() = TaskFragmentRunner(this, fragment)
+  private fun runner() = TaskFragmentRunner(this, composeTestRule, fragment)
 
   private fun getToolbar() =
     fragment.view?.findViewById<com.google.android.material.appbar.MaterialToolbar>(

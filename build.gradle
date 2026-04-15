@@ -61,6 +61,10 @@ plugins {
     alias libs.plugins.hilt.android apply false
     alias libs.plugins.detekt
     alias libs.plugins.protobuf apply false
+    alias libs.plugins.kotlin.multiplatform apply false
+    alias libs.plugins.android.kotlin.multiplatform.library apply false
+    alias libs.plugins.android.lint apply false
+    alias libs.plugins.compose.multiplatform apply false
 }
 
 allprojects {
@@ -87,9 +91,9 @@ subprojects {
 detekt {
     toolVersion = "1.23.8"
 
-    source = files("app/src")
+    source.setFrom(files(subprojects.collect { "${it.projectDir}/src" }))
     allRules = true
-    config = files("${project.rootDir}/config/detekt/detekt.yml")
+    config.setFrom(files("${project.rootDir}/config/detekt/detekt.yml"))
     baseline = file("${project.rootDir}/config/detekt/baseline.xml")
     buildUponDefaultConfig = true
     ignoreFailures = false
@@ -97,13 +101,14 @@ detekt {
     basePath = projectDir
 }
 
-tasks.register('checkCode', GradleBuild) {
-    tasks = ['checkstyle', 'lintLocalDebug', 'ktfmtCheck', 'detekt']
+tasks.register('checkCode') {
+    dependsOn 'detekt'
+}
+subprojects {
+    rootProject.tasks.named('checkCode').configure {
+        dependsOn tasks.matching { task ->
+            task.name in ['checkstyle', 'ktfmtCheck', 'lintLocalDebug', 'lintAndroidMain']
+        }
+    }
 }
 
-ext {
-    androidCompileSdk = 35
-    androidMinSdk = 24
-    androidTargetSdk = 35
-    jvmToolchainVersion = 17
-}

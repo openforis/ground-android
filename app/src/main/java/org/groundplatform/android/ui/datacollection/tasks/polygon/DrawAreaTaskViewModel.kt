@@ -15,42 +15,55 @@
  */
 package org.groundplatform.android.ui.datacollection.tasks.polygon
 
+import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import javax.inject.Inject
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted.Companion.WhileSubscribed
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.groundplatform.android.R
 import org.groundplatform.android.data.local.LocalValueStore
 import org.groundplatform.android.data.uuid.OfflineUuidGenerator
-import org.groundplatform.android.model.geometry.Coordinates
-import org.groundplatform.android.model.geometry.LineString
-import org.groundplatform.android.model.geometry.LinearRing
-import org.groundplatform.android.model.geometry.Polygon
-import org.groundplatform.android.model.job.Job
-import org.groundplatform.android.model.job.getDefaultColor
-import org.groundplatform.android.model.settings.MeasurementUnits
-import org.groundplatform.android.model.submission.DrawAreaTaskData
-import org.groundplatform.android.model.submission.DrawAreaTaskIncompleteData
-import org.groundplatform.android.model.submission.TaskData
-import org.groundplatform.android.model.task.Task
 import org.groundplatform.android.ui.common.SharedViewModel
+import org.groundplatform.android.ui.datacollection.components.ButtonAction
+import org.groundplatform.android.ui.datacollection.components.ButtonActionState
 import org.groundplatform.android.ui.datacollection.tasks.AbstractMapTaskViewModel
+import org.groundplatform.android.ui.datacollection.tasks.TaskPositionInterface
 import org.groundplatform.android.ui.map.Feature
 import org.groundplatform.android.ui.util.LocaleAwareMeasureFormatter
 import org.groundplatform.android.ui.util.VibrationHelper
-import org.groundplatform.android.ui.util.calculateShoelacePolygonArea
+import org.groundplatform.android.ui.util.getDefaultColor
 import org.groundplatform.android.ui.util.getFormattedArea
-import org.groundplatform.android.ui.util.isSelfIntersecting
-import org.groundplatform.android.usecases.user.GetUserSettingsUseCase
 import org.groundplatform.android.util.distanceTo
 import org.groundplatform.android.util.penult
+import org.groundplatform.domain.model.geometry.Coordinates
+import org.groundplatform.domain.model.geometry.LineString
+import org.groundplatform.domain.model.geometry.LinearRing
+import org.groundplatform.domain.model.geometry.Polygon
+import org.groundplatform.domain.model.job.Job
+import org.groundplatform.domain.model.settings.MeasurementUnits
+import org.groundplatform.domain.model.submission.DrawAreaTaskData
+import org.groundplatform.domain.model.submission.DrawAreaTaskIncompleteData
+import org.groundplatform.domain.model.submission.TaskData
+import org.groundplatform.domain.model.submission.isNotNullOrEmpty
+import org.groundplatform.domain.model.task.Task
+import org.groundplatform.domain.usecases.user.GetUserSettingsUseCase
+import org.groundplatform.domain.util.calculateShoelacePolygonArea
+import org.groundplatform.domain.util.isSelfIntersecting
+import org.jetbrains.annotations.VisibleForTesting
 import timber.log.Timber
 
 /** Min. distance between the last two vertices required for distance tooltip to be shown shown. */
@@ -97,6 +110,10 @@ internal constructor(
    */
   val draftUpdates = _draftUpdates.asSharedFlow()
 
+  /** Channel for one-shot camera movement events. Fragment collects to move map. */
+  private val _cameraMoveEvents = Channel<Coordinates>(Channel.CONFLATED)
+  val cameraMoveEvents = _cameraMoveEvents.receiveAsFlow()
+
   /** Whether the instructions dialog has been shown or not. */
   var instructionsDialogShown: Boolean by localValueStore::drawAreaInstructionsShown
 
@@ -123,8 +140,7 @@ internal constructor(
   private val _isTooClose = MutableStateFlow(false)
   val isTooClose: StateFlow<Boolean> = _isTooClose.asStateFlow()
 
-  private val _showSelfIntersectionDialog = MutableSharedFlow<Unit>()
-  val showSelfIntersectionDialog = _showSelfIntersectionDialog.asSharedFlow()
+  val showSelfIntersectionDialog = mutableStateOf(false)
 
   var hasSelfIntersection: Boolean = false
     private set
@@ -132,8 +148,31 @@ internal constructor(
   private lateinit var featureStyle: Feature.Style
   lateinit var measurementUnits: MeasurementUnits
 
-  override fun initialize(job: Job, task: Task, taskData: TaskData?) {
-    super.initialize(job, task, taskData)
+  override val taskActionButtonStates: StateFlow<List<ButtonActionState>> by lazy {
+    combine(taskTaskData, merge(draftArea, draftUpdates)) { taskData, currentFeature ->
+        val isClosed = (currentFeature?.geometry as? LineString)?.isClosed() ?: false
+        listOfNotNull(
+          getPreviousButton(),
+          getSkipButton(taskData),
+          getUndoButton(taskData, true),
+          getRedoButton(taskData),
+          getAddPointButton(isClosed, isTooClose.value),
+          getCompleteButton(isClosed, isMarkedComplete.value, hasSelfIntersection),
+          getNextButton(taskData).takeIf { isMarkedComplete() },
+        )
+      }
+      .distinctUntilChanged()
+      .stateIn(viewModelScope, WhileSubscribed(5_000), emptyList())
+  }
+
+  override fun initialize(
+    job: Job,
+    task: Task,
+    taskData: TaskData?,
+    taskPositionInterface: TaskPositionInterface,
+    surveyId: String,
+  ) {
+    super.initialize(job, task, taskData, taskPositionInterface, surveyId)
     viewModelScope.launch { measurementUnits = getUserSettingsUseCase.invoke().measurementUnits }
     featureStyle = Feature.Style(job.getDefaultColor(), Feature.VertexStyle.CIRCLE)
 
@@ -142,7 +181,6 @@ internal constructor(
       is DrawAreaTaskIncompleteData -> {
         updateVertices(taskData.lineString.coordinates)
       }
-
       is DrawAreaTaskData -> {
         updateVertices(taskData.area.getShellCoordinates())
         try {
@@ -163,10 +201,10 @@ internal constructor(
 
   fun isMarkedComplete(): Boolean = isMarkedComplete.value
 
-  fun getLastVertex() = vertices.lastOrNull()
+  @VisibleForTesting fun getLastVertex() = vertices.lastOrNull()
 
   private fun onSelfIntersectionDetected() {
-    viewModelScope.launch { _showSelfIntersectionDialog.emit(Unit) }
+    showSelfIntersectionDialog.value = true
   }
 
   /**
@@ -201,6 +239,7 @@ internal constructor(
   }
 
   /** Attempts to remove the last vertex of drawn polygon, if any. */
+  @VisibleForTesting
   fun removeLastVertex() {
     // Do nothing if there are no vertices to remove.
     if (vertices.isEmpty()) return
@@ -248,6 +287,7 @@ internal constructor(
   }
 
   /** Adds the last vertex to the polygon. */
+  @VisibleForTesting
   fun addLastVertex() {
     check(!isMarkedComplete.value) { "Attempted to add last vertex after completing the drawing" }
     _redoVertexStack.clear()
@@ -279,7 +319,7 @@ internal constructor(
     }
   }
 
-  fun checkVertexIntersection(): Boolean {
+  private fun checkVertexIntersection(): Boolean {
     hasSelfIntersection = isSelfIntersecting(vertices)
     if (hasSelfIntersection) {
       vertices = vertices.dropLast(1)
@@ -288,7 +328,7 @@ internal constructor(
     return hasSelfIntersection
   }
 
-  fun validatePolygonCompletion(): Boolean {
+  private fun validatePolygonCompletion(): Boolean {
     if (vertices.size < 3) {
       return false
     }
@@ -313,6 +353,7 @@ internal constructor(
     refreshMap()
   }
 
+  @VisibleForTesting
   fun completePolygon() {
     check(LineString(vertices).isClosed()) { "Polygon is not complete" }
     check(!isMarkedComplete.value) { "Already marked complete" }
@@ -340,22 +381,21 @@ internal constructor(
    *
    * This coroutine runs on [viewModelScope] to ensure lifecycle safety.
    */
-  private fun refreshMap() =
-    viewModelScope.launch {
-      if (vertices.isEmpty()) {
-        _draftArea.emit(null)
-        draftTag = null
+  private fun refreshMap() = viewModelScope.launch {
+    if (vertices.isEmpty()) {
+      _draftArea.emit(null)
+      draftTag = null
+    } else {
+      if (draftTag == null) {
+        val feature = buildPolygonFeature()
+        draftTag = feature.tag
+        _draftArea.emit(feature)
       } else {
-        if (draftTag == null) {
-          val feature = buildPolygonFeature()
-          draftTag = feature.tag
-          _draftArea.emit(feature)
-        } else {
-          val feature = buildPolygonFeature(id = draftTag!!.id)
-          _draftUpdates.tryEmit(feature)
-        }
+        val feature = buildPolygonFeature(id = draftTag!!.id)
+        _draftUpdates.tryEmit(feature)
       }
     }
+  }
 
   private suspend fun buildPolygonFeature(id: String? = null) =
     Feature(
@@ -386,6 +426,57 @@ internal constructor(
 
   fun triggerVibration() {
     vibrationHelper.vibrate()
+  }
+
+  private fun getRedoButton(taskData: TaskData?): ButtonActionState =
+    ButtonActionState(
+      action = ButtonAction.REDO,
+      isEnabled = redoVertexStack.isNotEmpty() && taskData.isNotNullOrEmpty(),
+      isVisible = true,
+    )
+
+  private fun getAddPointButton(isPolygonClosed: Boolean, isTooClose: Boolean): ButtonActionState =
+    ButtonActionState(
+      action = ButtonAction.ADD_POINT,
+      isEnabled = !isPolygonClosed && !isTooClose,
+      isVisible = !isPolygonClosed,
+    )
+
+  private fun getCompleteButton(
+    isClosed: Boolean,
+    isMarkedComplete: Boolean,
+    hasSelfIntersection: Boolean,
+  ): ButtonActionState =
+    ButtonActionState(
+      action = ButtonAction.COMPLETE,
+      isEnabled = isClosed && !isMarkedComplete && !hasSelfIntersection,
+      isVisible = isClosed && !isMarkedComplete,
+    )
+
+  override fun onButtonClick(action: ButtonAction) {
+    when (action) {
+      ButtonAction.UNDO -> {
+        removeLastVertex()
+        getLastVertex()?.let { _cameraMoveEvents.trySend(it) }
+      }
+      ButtonAction.REDO -> {
+        redoLastVertex()
+        getLastVertex()?.let { _cameraMoveEvents.trySend(it) }
+      }
+      ButtonAction.ADD_POINT -> {
+        addLastVertex()
+        val intersected = checkVertexIntersection()
+        if (!intersected) triggerVibration()
+      }
+      ButtonAction.COMPLETE -> {
+        if (validatePolygonCompletion()) {
+          completePolygon()
+        }
+      }
+      else -> {
+        super.onButtonClick(action)
+      }
+    }
   }
 
   companion object {

@@ -32,24 +32,24 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.groundplatform.android.BaseHiltTest
 import org.groundplatform.android.FakeData
-import org.groundplatform.android.coroutines.IoDispatcher
 import org.groundplatform.android.data.local.stores.LocalLocationOfInterestStore
 import org.groundplatform.android.data.local.stores.LocalSubmissionStore
 import org.groundplatform.android.data.local.stores.LocalSurveyStore
 import org.groundplatform.android.data.local.stores.LocalUserStore
 import org.groundplatform.android.data.remote.FakeRemoteDataStore
-import org.groundplatform.android.model.geometry.Point
-import org.groundplatform.android.model.mutation.LocationOfInterestMutation
-import org.groundplatform.android.model.mutation.Mutation
-import org.groundplatform.android.model.mutation.Mutation.SyncStatus.FAILED
-import org.groundplatform.android.model.mutation.Mutation.SyncStatus.IN_PROGRESS
-import org.groundplatform.android.model.mutation.Mutation.SyncStatus.MEDIA_UPLOAD_PENDING
-import org.groundplatform.android.model.mutation.Mutation.SyncStatus.PENDING
-import org.groundplatform.android.model.mutation.Mutation.SyncStatus.UNKNOWN
-import org.groundplatform.android.model.mutation.SubmissionMutation
+import org.groundplatform.android.di.coroutines.IoDispatcher
 import org.groundplatform.android.repository.MutationRepository
-import org.groundplatform.android.repository.UserRepository
 import org.groundplatform.android.system.auth.FakeAuthenticationManager
+import org.groundplatform.domain.model.geometry.Point
+import org.groundplatform.domain.model.mutation.LocationOfInterestMutation
+import org.groundplatform.domain.model.mutation.Mutation
+import org.groundplatform.domain.model.mutation.Mutation.SyncStatus.FAILED
+import org.groundplatform.domain.model.mutation.Mutation.SyncStatus.IN_PROGRESS
+import org.groundplatform.domain.model.mutation.Mutation.SyncStatus.MEDIA_UPLOAD_PENDING
+import org.groundplatform.domain.model.mutation.Mutation.SyncStatus.PENDING
+import org.groundplatform.domain.model.mutation.Mutation.SyncStatus.UNKNOWN
+import org.groundplatform.domain.model.mutation.SubmissionMutation
+import org.groundplatform.domain.repository.UserRepositoryInterface
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -78,7 +78,7 @@ class LocalMutationSyncWorkerTest : BaseHiltTest() {
 
   @Inject lateinit var mutationRepository: MutationRepository
 
-  @Inject lateinit var userRepository: UserRepository
+  @Inject lateinit var userRepository: UserRepositoryInterface
 
   @Inject @IoDispatcher lateinit var ioDispatcher: CoroutineDispatcher
 

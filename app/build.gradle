@@ -56,7 +56,7 @@ static def getGitHash() {
 }
 
 android {
-    compileSdk rootProject.androidCompileSdk
+    compileSdk = libs.versions.androidCompileSdk.get().toInteger()
     sourceSets {
         main {
             proto {
@@ -76,8 +76,8 @@ android {
     defaultConfig {
         manifestPlaceholders
         applicationId "org.openforis.ground"
-        minSdkVersion rootProject.androidMinSdk
-        targetSdkVersion rootProject.androidTargetSdk
+        minSdkVersion libs.versions.androidMinSdk.get().toInteger()
+        targetSdkVersion libs.versions.androidTargetSdk.get().toInteger()
 
         versionCode 45
         versionName "0.3.6"
@@ -89,8 +89,6 @@ android {
         buildConfigField "int", "AUTH_EMULATOR_PORT", "9099"
         buildConfigField "String", "SIGNUP_FORM_LINK", "\"\""
         manifestPlaceholders.usesCleartextTraffic = true
-
-        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
     // Use flag -PtestBuildType with desired variant to change default behavior.
@@ -110,7 +108,7 @@ android {
     buildTypes {
         release {
             minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         debug {
             ext.enableCrashlytics = false
@@ -181,6 +179,8 @@ configurations {
 
 dependencies {
     implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation project(':core:domain')
+    implementation project(':core:ui')
     implementation libs.androidx.multidex
     implementation libs.androidx.preference.ktx
 
@@ -221,7 +221,7 @@ dependencies {
     implementation libs.androidx.hilt.navigation.compose
 
     // Images
-    implementation libs.glide
+    implementation libs.coil.compose
 
     // Google Play Services
     implementation libs.play.services.auth
@@ -241,10 +241,9 @@ dependencies {
     implementation libs.firebase.config
     implementation libs.firebase.crashlytics
     implementation libs.firebase.firestore
-    implementation libs.firebase.functions.ktx
+    implementation libs.firebase.functions
     implementation libs.firebase.messaging
     implementation libs.firebase.messaging.directboot
-    implementation libs.firebase.messaging.ktx
     implementation libs.firebase.perf
     implementation libs.firebase.storage
 
@@ -376,7 +375,7 @@ apply plugin: 'androidx.navigation.safeargs'
 apply plugin: 'com.google.gms.google-services'
 
 kotlin {
-    jvmToolchain rootProject.jvmToolchainVersion
+    jvmToolchain libs.versions.jvmToolchainVersion.get().toInteger()
 }
 
 secrets {
@@ -388,3 +387,4 @@ secrets {
     // checked in version control.
     defaultPropertiesFileName = "local.defaults.properties"
 }
+

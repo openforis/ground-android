@@ -36,30 +36,32 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import org.groundplatform.android.common.Constants.CLUSTERING_ZOOM_THRESHOLD
 import org.groundplatform.android.data.local.LocalValueStore
-import org.groundplatform.android.model.Survey
-import org.groundplatform.android.model.job.Job
-import org.groundplatform.android.model.job.getDefaultColor
-import org.groundplatform.android.model.locationofinterest.LocationOfInterest
-import org.groundplatform.android.proto.Survey.DataSharingTerms
-import org.groundplatform.android.repository.LocationOfInterestRepository
 import org.groundplatform.android.repository.MapStateRepository
 import org.groundplatform.android.repository.OfflineAreaRepository
 import org.groundplatform.android.repository.SubmissionRepository
 import org.groundplatform.android.repository.SurveyRepository
-import org.groundplatform.android.repository.UserRepository
 import org.groundplatform.android.system.LocationManager
 import org.groundplatform.android.system.PermissionsManager
 import org.groundplatform.android.system.SettingsManager
 import org.groundplatform.android.ui.common.BaseMapViewModel
+import org.groundplatform.android.ui.common.LocationOfInterestHelper
 import org.groundplatform.android.ui.common.SharedViewModel
 import org.groundplatform.android.ui.home.mapcontainer.jobs.AdHocDataCollectionButtonData
-import org.groundplatform.android.ui.home.mapcontainer.jobs.DataCollectionEntryPointData
 import org.groundplatform.android.ui.home.mapcontainer.jobs.JobMapComponentState
 import org.groundplatform.android.ui.home.mapcontainer.jobs.SelectedLoiSheetData
 import org.groundplatform.android.ui.map.Feature
+import org.groundplatform.android.ui.map.gms.GmsExt.area
+import org.groundplatform.android.ui.util.getDefaultColor
 import org.groundplatform.android.usecases.datasharingterms.GetDataSharingTermsUseCase
+import org.groundplatform.domain.model.Survey
+import org.groundplatform.domain.model.job.Job
+import org.groundplatform.domain.model.locationofinterest.LocationOfInterest
+import org.groundplatform.domain.repository.LocationOfInterestRepositoryInterface
+import org.groundplatform.domain.repository.UserRepositoryInterface
+import org.groundplatform.domain.usecases.GetLoiReportUseCase
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @SharedViewModel
@@ -67,7 +69,7 @@ class HomeScreenMapContainerViewModel
 @Inject
 internal constructor(
   private val getDataSharingTermsUseCase: GetDataSharingTermsUseCase,
-  private val loiRepository: LocationOfInterestRepository,
+  private val loiRepository: LocationOfInterestRepositoryInterface,
   private val mapStateRepository: MapStateRepository,
   private val submissionRepository: SubmissionRepository,
   locationManager: LocationManager,
@@ -75,8 +77,10 @@ internal constructor(
   offlineAreaRepository: OfflineAreaRepository,
   permissionsManager: PermissionsManager,
   private val surveyRepository: SurveyRepository,
-  private val userRepository: UserRepository,
+  private val userRepository: UserRepositoryInterface,
   private val localValueStore: LocalValueStore,
+  private val locationOfInterestHelper: LocationOfInterestHelper,
+  private val getLoiReportUseCase: GetLoiReportUseCase,
 ) :
   BaseMapViewModel(
     locationManager,
@@ -124,6 +128,8 @@ internal constructor(
    */
   private val adHocLoiJobs: Flow<List<Job>>
 
+  private val showJobSelectionModal = MutableStateFlow(false)
+
   /** Emits whether the current zoom has crossed the zoomed-in threshold or not to cluster LOIs. */
   private val isZoomedInFlow: Flow<Boolean>
 
@@ -137,17 +143,16 @@ internal constructor(
     // THIS SHOULD NOT BE CALLED ON CONFIG CHANGE
 
     @OptIn(FlowPreview::class)
-    mapLoiFeatures =
-      activeSurvey.flatMapLatest {
-        if (it == null) flowOf(setOf())
-        else
-          getLocationOfInterestFeatures(it)
-            .debounce(1000.milliseconds)
-            .distinctUntilChanged()
-            .combine(selectedLoiIdFlow) { loiFeatures, selectedLoiId ->
-              updatedLoiSelectedStates(loiFeatures, selectedLoiId)
-            }
-      }
+    mapLoiFeatures = activeSurvey.flatMapLatest {
+      if (it == null) flowOf(setOf())
+      else
+        getLocationOfInterestFeatures(it)
+          .debounce(1000.milliseconds)
+          .distinctUntilChanged()
+          .combine(selectedLoiIdFlow) { loiFeatures, selectedLoiId ->
+            updatedLoiSelectedStates(loiFeatures, selectedLoiId)
+          }
+    }
 
     isZoomedInFlow =
       getCurrentCameraPosition().mapNotNull { it.zoomLevel }.map { it >= CLUSTERING_ZOOM_THRESHOLD }
@@ -169,12 +174,11 @@ internal constructor(
       }
 
     jobMapComponentState =
-      processDataCollectionEntryPoints()
-        .map { (loiCard, jobCards) -> JobMapComponentState(loiCard, jobCards) }
+      processJobMapComponentState()
         .stateIn(
           scope = viewModelScope,
           started = SharingStarted.Lazily,
-          initialValue = JobMapComponentState(),
+          initialValue = JobMapComponentState.Hidden,
         )
   }
 
@@ -193,37 +197,79 @@ internal constructor(
     }
   }
 
-  fun getDataSharingTerms(): Result<DataSharingTerms?> = getDataSharingTermsUseCase()
+  fun getDataSharingTerms(): Result<Survey.DataSharingTerms?> = getDataSharingTermsUseCase()
 
   /**
-   * Returns a flow of [DataCollectionEntryPointData] associated with the active survey's LOIs and
-   * adhoc jobs for displaying the cards.
+   * Returns a flow of [JobMapComponentState] associated with the active survey's LOIs and adhoc
+   * jobs for displaying the cards.
    */
   @VisibleForTesting
-  fun processDataCollectionEntryPoints():
-    Flow<Pair<SelectedLoiSheetData?, List<AdHocDataCollectionButtonData>>> =
-    combine(loisInViewport, featureClicked, adHocLoiJobs) { loisInView, feature, jobs ->
+  fun processJobMapComponentState(): Flow<JobMapComponentState> =
+    combine(loisInViewport, featureClicked, adHocLoiJobs, showJobSelectionModal) {
+      loisInView,
+      feature,
+      jobs,
+      isModalShown ->
       val canUserSubmitData = userRepository.canUserSubmitData()
       val loiCard =
         loisInView
           .firstOrNull { it.geometry == feature?.geometry }
           ?.let { loi ->
             val canDelete = userRepository.canDeleteLoi(loi)
+            val loiReport =
+              getLoiReportUseCase.invoke(
+                loiName = locationOfInterestHelper.getDisplayLoiName(loi),
+                loiId = loi.id,
+                surveyId = activeSurvey.filterNotNull().first().id,
+              )
+
             SelectedLoiSheetData(
               canCollectData = canUserSubmitData,
               loi = loi,
               submissionCount = submissionRepository.getTotalSubmissionCount(loi),
               showDeleteLoiButton = canDelete,
+              loiReport = loiReport,
             )
           }
+
       if (loiCard == null && feature != null) {
         // The feature is not in view anymore.
         featureClicked.value = null
       }
-      val jobCard =
-        jobs.map { AdHocDataCollectionButtonData(canCollectData = canUserSubmitData, job = it) }
-      Pair(loiCard, jobCard)
+
+      val jobCards = jobs.map {
+        AdHocDataCollectionButtonData(canCollectData = canUserSubmitData, job = it)
+      }
+
+      when {
+        loiCard != null -> JobMapComponentState.LoiSelected(loiCard)
+        isModalShown && jobCards.isNotEmpty() -> JobMapComponentState.JobSelectionModal(jobCards)
+        jobCards.isNotEmpty() -> JobMapComponentState.AddLoiButton(jobCards)
+        else -> JobMapComponentState.Hidden
+      }
     }
+
+  fun setJobSelectionModalVisibility(isVisible: Boolean) {
+    showJobSelectionModal.value = isVisible
+    onJobSelectionModalVisibilityChanged(isVisible)
+  }
+
+  /**
+   * Resolves the result of an "Add LOI" button click based on the current UI state.
+   *
+   * @return The single available [AdHocDataCollectionButtonData], or `null` if a selection modal
+   *   should be shown or the action is not applicable.
+   */
+  fun resolveAddLoiAction(currentState: JobMapComponentState): AdHocDataCollectionButtonData? {
+    val state = currentState as? JobMapComponentState.AddLoiButton ?: return null
+
+    return if (state.jobs.size > 1) {
+      setJobSelectionModalVisibility(true)
+      null
+    } else {
+      state.jobs.firstOrNull()
+    }
+  }
 
   private fun updatedLoiSelectedStates(
     features: Set<Feature>,
@@ -244,7 +290,7 @@ internal constructor(
    * list of provided features is empty.
    */
   fun onFeatureClicked(features: Set<Feature>) {
-    featureClicked.value = features.minByOrNull { it.geometry.area }
+    featureClicked.value = features.minByOrNull { it.geometry.area() }
   }
 
   fun grantDataSharingConsent() {
@@ -255,9 +301,11 @@ internal constructor(
   /**
    * Deletes the given LOI and all associated data. This should only be called for free-form jobs.
    */
-  suspend fun deleteLoi(loi: LocationOfInterest) {
-    loiRepository.deleteLoi(loi)
-    selectLocationOfInterest(null)
+  fun deleteLoi(loi: LocationOfInterest) {
+    viewModelScope.launch {
+      loiRepository.deleteLoi(loi)
+      selectLocationOfInterest(null)
+    }
   }
 
   private fun getLocationOfInterestFeatures(survey: Survey): Flow<Set<Feature>> =

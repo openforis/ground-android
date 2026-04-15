@@ -25,11 +25,11 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
-import org.groundplatform.android.coroutines.IoDispatcher
 import org.groundplatform.android.data.remote.RemoteDataStore
-import org.groundplatform.android.model.mutation.Mutation
+import org.groundplatform.android.di.coroutines.IoDispatcher
 import org.groundplatform.android.repository.MutationRepository
 import org.groundplatform.android.util.priority
+import org.groundplatform.domain.model.mutation.Mutation
 import timber.log.Timber
 
 /**

@@ -23,24 +23,23 @@ import javax.inject.Inject
 import javax.inject.Provider
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import org.groundplatform.android.coroutines.ApplicationScope
-import org.groundplatform.android.coroutines.IoDispatcher
 import org.groundplatform.android.data.local.room.converter.SubmissionDeltasConverter
 import org.groundplatform.android.data.uuid.OfflineUuidGenerator
-import org.groundplatform.android.model.job.Job
-import org.groundplatform.android.model.submission.TaskData
-import org.groundplatform.android.model.submission.ValueDelta
-import org.groundplatform.android.model.submission.isNotNullOrEmpty
-import org.groundplatform.android.model.task.Task
+import org.groundplatform.android.di.coroutines.ApplicationScope
+import org.groundplatform.android.di.coroutines.IoDispatcher
 import org.groundplatform.android.repository.SubmissionRepository
 import org.groundplatform.android.ui.common.AbstractViewModel
 import org.groundplatform.android.ui.common.EphemeralPopups
 import org.groundplatform.android.ui.common.ViewModelFactory
 import org.groundplatform.android.ui.datacollection.tasks.AbstractTaskViewModel
+import org.groundplatform.android.ui.datacollection.tasks.TaskPositionInterface
 import org.groundplatform.android.ui.datacollection.tasks.date.DateTaskViewModel
 import org.groundplatform.android.ui.datacollection.tasks.instruction.InstructionTaskViewModel
 import org.groundplatform.android.ui.datacollection.tasks.location.CaptureLocationTaskViewModel
@@ -52,6 +51,12 @@ import org.groundplatform.android.ui.datacollection.tasks.polygon.DrawAreaTaskVi
 import org.groundplatform.android.ui.datacollection.tasks.text.TextTaskViewModel
 import org.groundplatform.android.ui.datacollection.tasks.time.TimeTaskViewModel
 import org.groundplatform.android.usecases.submission.SubmitDataUseCase
+import org.groundplatform.domain.model.job.Job
+import org.groundplatform.domain.model.submission.TaskData
+import org.groundplatform.domain.model.submission.ValueDelta
+import org.groundplatform.domain.model.submission.isNotNullOrEmpty
+import org.groundplatform.domain.model.task.Task
+import org.groundplatform.domain.usecases.GetLoiReportUseCase
 import timber.log.Timber
 
 /** View model for the Data Collection fragment. */
@@ -68,7 +73,12 @@ internal constructor(
   private val popups: Provider<EphemeralPopups>,
   private val viewModelFactory: ViewModelFactory,
   private val dataCollectionInitializer: DataCollectionInitializer,
+  private val getLoiReportUseCase: GetLoiReportUseCase,
 ) : AbstractViewModel() {
+
+  /** The current vertical position of the task view footer. */
+  private val _footerVerticalPosition = MutableStateFlow(0.0f)
+  val footerVerticalPosition: StateFlow<Float> = _footerVerticalPosition
 
   private val _uiState = MutableStateFlow<DataCollectionUiState>(DataCollectionUiState.Loading)
   val uiState: StateFlow<DataCollectionUiState> = _uiState
@@ -78,7 +88,6 @@ internal constructor(
 
   private val jobId: String = requireNotNull(savedStateHandle[TASK_JOB_ID_KEY])
   private val loiId: String? = savedStateHandle[TASK_LOI_ID_KEY]
-  private val loiName: String? = savedStateHandle[TASK_LOI_NAME_KEY]
 
   private val taskDataHandler = TaskDataHandler()
   private lateinit var taskSequenceHandler: TaskSequenceHandler
@@ -91,7 +100,13 @@ internal constructor(
 
   init {
     viewModelScope.launch {
-      val initResult = dataCollectionInitializer.initialize(savedStateHandle, jobId, loiId, loiName)
+      val initResult =
+        dataCollectionInitializer.initialize(
+          savedStateHandle,
+          jobId,
+          loiId,
+          getTypedLoiNameOrEmpty(),
+        )
 
       if (initResult is DataCollectionUiState.Ready) {
         taskSequenceHandler = TaskSequenceHandler(initResult.tasks, taskDataHandler)
@@ -111,21 +126,17 @@ internal constructor(
     }
   }
 
-  fun isFirstPosition(taskId: String): Boolean = withReady {
-    taskSequenceHandler.isFirstPosition(taskId)
-  }
+  private fun isFirstPosition(taskId: String): Boolean =
+    withReadyOrNull { taskSequenceHandler.isFirstPosition(taskId) } ?: false
 
-  fun isLastPosition(taskId: String): Boolean = withReady {
-    taskSequenceHandler.isLastPosition(taskId)
-  }
-
-  fun isLastPositionWithValue(task: Task, newValue: TaskData?): Boolean = withReady {
-    if (taskDataHandler.getData(task) == newValue) {
-      taskSequenceHandler.isLastPosition(task.id)
-    } else {
-      taskSequenceHandler.checkIfTaskIsLastWithValue(task.id to newValue)
-    }
-  }
+  private fun isLastPositionWithValue(task: Task, newValue: TaskData?): Boolean =
+    withReadyOrNull {
+      if (taskDataHandler.getData(task) == newValue) {
+        taskSequenceHandler.isLastPosition(task.id)
+      } else {
+        taskSequenceHandler.checkIfTaskIsLastWithValue(task.id to newValue)
+      }
+    } ?: false
 
   fun isAtFirstTask(): Boolean = withReady { taskSequenceHandler.isFirstPosition(it.currentTaskId) }
 
@@ -163,8 +174,16 @@ internal constructor(
         moveToNextTask()
       } else {
         clearDraft()
-        saveChanges(st, getDeltas())
-        _uiState.value = DataCollectionUiState.TaskSubmitted
+        externalScope.launch(ioDispatcher) {
+          val submittedLoiId = saveChanges(st, getDeltas())
+          val loiReport =
+            getLoiReportUseCase.invoke(
+              loiName = getTypedLoiNameOrEmpty(),
+              loiId = submittedLoiId,
+              surveyId = st.surveyId,
+            )
+          _uiState.value = DataCollectionUiState.TaskSubmitted(loiReport)
+        }
       }
     }
   }
@@ -205,7 +224,19 @@ internal constructor(
 
     viewModel?.let { created ->
       val taskData = if (shouldLoadFromDraft) getValueFromDraft(state.job, task) else null
-      created.initialize(state.job, task, taskData)
+      created.initialize(
+        job = state.job,
+        task = task,
+        taskData = taskData,
+        taskPositionInterface =
+          object : TaskPositionInterface {
+            override fun isFirst(): Boolean = isFirstPosition(task.id)
+
+            override fun isLastWithValue(taskData: TaskData?): Boolean =
+              isLastPositionWithValue(task, taskData)
+          },
+        surveyId = state.surveyId,
+      )
       updateDataAndInvalidateTasks(task, taskData)
       taskViewModels.value[task.id] = created
     }
@@ -225,18 +256,19 @@ internal constructor(
     moveToTask(withReady { taskSequenceHandler.getNextTask(it.currentTaskId) })
   }
 
-  private fun saveChanges(state: DataCollectionUiState.Ready, deltas: List<ValueDelta>) {
-    externalScope.launch(ioDispatcher) {
-      val collectionId = offlineUuidGenerator.generateUuid()
-      submitDataUseCase.invoke(
-        loiId,
-        state.job,
-        state.surveyId,
-        deltas,
-        savedStateHandle[TASK_LOI_NAME_KEY],
-        collectionId,
-      )
-    }
+  private suspend fun saveChanges(
+    state: DataCollectionUiState.Ready,
+    deltas: List<ValueDelta>,
+  ): String {
+    val collectionId = offlineUuidGenerator.generateUuid()
+    return submitDataUseCase.invoke(
+      selectedLoiId = loiId,
+      job = state.job,
+      surveyId = state.surveyId,
+      deltas = deltas,
+      loiName = savedStateHandle[TASK_LOI_NAME_KEY],
+      collectionId = collectionId,
+    )
   }
 
   private fun suppressDrafts() {
@@ -267,7 +299,7 @@ internal constructor(
     val state = uiState.value
 
     if (
-      state == DataCollectionUiState.TaskSubmitted ||
+      state is DataCollectionUiState.TaskSubmitted ||
         deltas.isEmpty() ||
         state !is DataCollectionUiState.Ready
     ) {
@@ -327,8 +359,9 @@ internal constructor(
     synchronized(draftLock) {
       if (draftCache == null) {
         draftCache = parsed
-        draftMapCache =
-          parsed.associate { (taskId, taskType, value) -> (taskId to taskType) to value }
+        draftMapCache = parsed.associate { (taskId, taskType, value) ->
+          (taskId to taskType) to value
+        }
       }
     }
   }
@@ -349,6 +382,15 @@ internal constructor(
     } else {
       onValid()
     }
+  }
+
+  fun isCurrentActiveTaskFlow(taskId: String): Flow<Boolean> =
+    uiState
+      .map { (it as? DataCollectionUiState.Ready)?.currentTaskId == taskId }
+      .distinctUntilChanged()
+
+  fun updateFooterPosition(top: Float) {
+    _footerVerticalPosition.value = top
   }
 
   companion object {

@@ -15,170 +15,66 @@
  */
 package org.groundplatform.android.ui.datacollection.tasks.polygon
 
-import android.os.Bundle
-import android.view.LayoutInflater
-import android.view.View
 import android.widget.Toast
-import androidx.lifecycle.lifecycleScope
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import javax.inject.Provider
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.merge
-import kotlinx.coroutines.launch
 import org.groundplatform.android.R
-import org.groundplatform.android.databinding.FragmentDrawAreaTaskBinding
-import org.groundplatform.android.model.geometry.LineString
-import org.groundplatform.android.model.geometry.LineString.Companion.lineStringOf
-import org.groundplatform.android.model.submission.isNotNullOrEmpty
 import org.groundplatform.android.ui.components.ConfirmationDialog
-import org.groundplatform.android.ui.datacollection.components.ButtonAction
-import org.groundplatform.android.ui.datacollection.components.InstructionsDialog
-import org.groundplatform.android.ui.datacollection.components.TaskButton
-import org.groundplatform.android.ui.datacollection.components.TaskView
-import org.groundplatform.android.ui.datacollection.components.TaskViewFactory
+import org.groundplatform.android.ui.datacollection.components.InstructionData
+import org.groundplatform.android.ui.datacollection.components.TaskHeader
+import org.groundplatform.android.ui.datacollection.components.TaskMapFragmentContainer
 import org.groundplatform.android.ui.datacollection.tasks.AbstractTaskFragment
-import org.groundplatform.android.ui.datacollection.tasks.AbstractTaskMapFragment.Companion.TASK_ID_FRAGMENT_ARG_KEY
-import org.groundplatform.android.ui.map.Feature
-import org.groundplatform.android.util.renderComposableDialog
 
 @AndroidEntryPoint
 class DrawAreaTaskFragment @Inject constructor() : AbstractTaskFragment<DrawAreaTaskViewModel>() {
   @Inject lateinit var drawAreaTaskMapFragmentProvider: Provider<DrawAreaTaskMapFragment>
-  // Action buttons
-  private lateinit var completeButton: TaskButton
-  private lateinit var addPointButton: TaskButton
-  private lateinit var nextButton: TaskButton
 
-  private lateinit var drawAreaTaskMapFragment: DrawAreaTaskMapFragment
+  override val taskHeader: TaskHeader by lazy {
+    TaskHeader(viewModel.task.label, R.drawable.outline_draw)
+  }
 
-  override fun onCreateTaskView(inflater: LayoutInflater): TaskView =
-    TaskViewFactory.createWithCombinedHeader(inflater, R.drawable.outline_draw)
+  override val instructionData =
+    InstructionData(
+      iconId = R.drawable.touch_app_24,
+      stringId = R.string.draw_area_task_instruction,
+    )
 
-  override fun onCreateTaskBody(inflater: LayoutInflater): View {
-    // XML layout is used to provide a static view ID which does not collide with Google Maps view
-    // ID (https://github.com/google/ground-android/issues/2493).
-    // The ID is needed when restoring the view on config change since the view is dynamically
-    // created.
-    // TODO: Remove this workaround once this UI is migrated to Compose.
-    // Issue URL: https://github.com/google/ground-android/issues/1795
-    val rootView = FragmentDrawAreaTaskBinding.inflate(inflater)
+  @Composable
+  override fun TaskBody() {
+    var showSelfIntersectionDialog by viewModel.showSelfIntersectionDialog
 
-    drawAreaTaskMapFragment = drawAreaTaskMapFragmentProvider.get()
-    val args = Bundle()
-    args.putString(TASK_ID_FRAGMENT_ARG_KEY, taskId)
-    drawAreaTaskMapFragment.arguments = args
-    childFragmentManager
-      .beginTransaction()
-      .add(
-        R.id.container_draw_area_task_map,
-        drawAreaTaskMapFragment,
-        DrawAreaTaskMapFragment::class.java.simpleName,
+    TaskMapFragmentContainer(
+      taskId = viewModel.task.id,
+      fragmentManager = childFragmentManager,
+      fragmentProvider = drawAreaTaskMapFragmentProvider,
+    )
+
+    if (showSelfIntersectionDialog) {
+      ConfirmationDialog(
+        title = R.string.polygon_vertex_add_dialog_title,
+        description = R.string.polygon_vertex_add_dialog_message,
+        confirmButtonText = R.string.polygon_vertex_add_dialog_positive_button,
+        dismissButtonText = null,
+        onConfirmClicked = { showSelfIntersectionDialog = false },
       )
-      .commit()
-    return rootView.root
-  }
-
-  override fun onCreateActionButtons() {
-    addSkipButton()
-    addButton(ButtonAction.UNDO)
-      .setOnClickListener { removeLastVertex() }
-      .setOnValueChanged { button, value -> button.enableIfTrue(value.isNotNullOrEmpty()) }
-    addButton(ButtonAction.REDO)
-      .setOnClickListener { restoreLastVertex() }
-      .setOnValueChanged { button, value ->
-        button.enableIfTrue(viewModel.redoVertexStack.isNotEmpty() && value.isNotNullOrEmpty())
-      }
-    nextButton = addNextButton()
-    addPointButton =
-      addButton(ButtonAction.ADD_POINT).setOnClickListener {
-        viewModel.addLastVertex()
-        val intersected = viewModel.checkVertexIntersection()
-        if (!intersected) viewModel.triggerVibration()
-      }
-    completeButton =
-      addButton(ButtonAction.COMPLETE).setOnClickListener {
-        if (viewModel.validatePolygonCompletion()) {
-          viewModel.completePolygon()
-        }
-      }
-  }
-
-  /** Removes the last vertex from the polygon. */
-  private fun removeLastVertex() {
-    viewModel.removeLastVertex()
-
-    // Move the camera to the last vertex, if any.
-    moveToPosition()
-  }
-
-  private fun restoreLastVertex() {
-    viewModel.redoLastVertex()
-
-    moveToPosition()
-  }
-
-  private fun moveToPosition() {
-    val lastVertex = viewModel.getLastVertex() ?: return
-    drawAreaTaskMapFragment.moveToPosition(lastVertex)
-  }
-
-  override fun onTaskViewAttached() {
-    onFeatureUpdated(null)
-    viewLifecycleOwner.lifecycleScope.launch {
-      merge(viewModel.draftArea, viewModel.draftUpdates)
-        .filterNotNull()
-        .collectLatest(::onFeatureUpdated)
     }
   }
 
   override fun onTaskResume() {
     if (isVisible && !viewModel.instructionsDialogShown) {
-      showInstructionsDialog()
+      viewModel.showInstructionsDialog.value = true
     }
     viewModel.polygonArea.observe(viewLifecycleOwner) { area ->
       Toast.makeText(requireContext(), getString(R.string.area_message, area), Toast.LENGTH_LONG)
         .show()
     }
-    viewLifecycleOwner.lifecycleScope.launch {
-      viewModel.showSelfIntersectionDialog.collect {
-        renderComposableDialog {
-          ConfirmationDialog(
-            title = R.string.polygon_vertex_add_dialog_title,
-            description = R.string.polygon_vertex_add_dialog_message,
-            confirmButtonText = R.string.polygon_vertex_add_dialog_positive_button,
-            dismissButtonText = null,
-            onConfirmClicked = {},
-          )
-        }
-      }
-    }
   }
 
-  private fun onFeatureUpdated(feature: Feature?) {
-    val geometry = feature?.geometry ?: lineStringOf()
-    check(geometry is LineString) { "Invalid area geometry type ${geometry.javaClass}" }
-
-    val closed = geometry.isClosed()
-    val markedComplete = viewModel.isMarkedComplete()
-    val tooClose = viewModel.isTooClose.value
-    val selfIntersecting = viewModel.hasSelfIntersection
-
-    addPointButton.showIfTrue(!closed)
-    addPointButton.enableIfTrue(!closed && !tooClose)
-    completeButton.showIfTrue(closed && !markedComplete)
-    completeButton.enableIfTrue(closed && !markedComplete && !selfIntersecting)
-    nextButton.showIfTrue(markedComplete)
-  }
-
-  private fun showInstructionsDialog() {
+  override fun onInstructionDialogDismissed() {
     viewModel.instructionsDialogShown = true
-    renderComposableDialog {
-      InstructionsDialog(
-        iconId = R.drawable.touch_app_24,
-        stringId = R.string.draw_area_task_instruction,
-      )
-    }
   }
 }

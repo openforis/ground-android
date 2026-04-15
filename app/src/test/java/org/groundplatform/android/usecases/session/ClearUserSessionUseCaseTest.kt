@@ -15,51 +15,48 @@
  */
 package org.groundplatform.android.usecases.session
 
-import dagger.hilt.android.testing.HiltAndroidTest
 import kotlin.test.Test
-import org.groundplatform.android.BaseHiltTest
+import kotlinx.coroutines.test.runTest
 import org.groundplatform.android.data.local.room.LocalDatabase
 import org.groundplatform.android.repository.OfflineAreaRepository
 import org.groundplatform.android.repository.SurveyRepository
-import org.groundplatform.android.repository.UserRepository
+import org.groundplatform.domain.repository.UserRepositoryInterface
 import org.junit.runner.RunWith
 import org.mockito.InjectMocks
 import org.mockito.Mock
 import org.mockito.Mockito.times
+import org.mockito.junit.MockitoJUnitRunner
 import org.mockito.kotlin.verify
-import org.robolectric.RobolectricTestRunner
 
-@HiltAndroidTest
-@RunWith(RobolectricTestRunner::class)
-class ClearUserSessionUseCaseTest : BaseHiltTest() {
-
+@RunWith(MockitoJUnitRunner::class)
+class ClearUserSessionUseCaseTest {
   @Mock lateinit var localDatabase: LocalDatabase
   @Mock lateinit var offlineAreaRepository: OfflineAreaRepository
   @Mock lateinit var surveyRepository: SurveyRepository
-  @Mock lateinit var userRepository: UserRepository
+  @Mock lateinit var userRepository: UserRepositoryInterface
 
   @InjectMocks lateinit var clearUserSessionUseCase: ClearUserSessionUseCase
 
   @Test
-  fun `Deletes all offline areas`() = runWithTestDispatcher {
+  fun `Deletes all offline areas`() = runTest {
     clearUserSessionUseCase()
     verify(offlineAreaRepository, times(1)).removeAllOfflineAreas()
   }
 
   @Test
-  fun `Clears active survey`() = runWithTestDispatcher {
+  fun `Clears active survey`() = runTest {
     clearUserSessionUseCase()
     verify(surveyRepository, times(1)).clearActiveSurvey()
   }
 
   @Test
-  fun `Clears user preference`() = runWithTestDispatcher {
+  fun `Clears user preference`() = runTest {
     clearUserSessionUseCase()
     verify(userRepository, times(1)).clearUserPreferences()
   }
 
   @Test
-  fun `Clears all tables`() = runWithTestDispatcher {
+  fun `Clears all tables`() = runTest {
     clearUserSessionUseCase()
     verify(localDatabase, times(1)).clearAllTables()
   }

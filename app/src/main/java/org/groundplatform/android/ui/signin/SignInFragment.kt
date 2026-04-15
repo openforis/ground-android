@@ -24,7 +24,7 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import dagger.hilt.android.AndroidEntryPoint
 import org.groundplatform.android.ui.common.AbstractFragment
 import org.groundplatform.android.ui.common.BackPressListener
-import org.groundplatform.android.ui.theme.AppTheme
+import org.groundplatform.ui.theme.AppTheme
 
 @AndroidEntryPoint
 class SignInFragment : AbstractFragment(), BackPressListener {
@@ -36,7 +36,7 @@ class SignInFragment : AbstractFragment(), BackPressListener {
   ): View =
     ComposeView(requireContext()).apply {
       setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
-      setContent { AppTheme { SignInScreen() } }
+      setContent { AppTheme { SignInScreen(onCloseApp = { requireActivity().finish() }) } }
     }
 
   override fun onBack(): Boolean {

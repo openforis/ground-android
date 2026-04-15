@@ -37,11 +37,10 @@ import kotlin.test.assertNull
 import org.groundplatform.android.BaseHiltTest
 import org.groundplatform.android.R
 import org.groundplatform.android.data.remote.FakeRemoteDataStore
-import org.groundplatform.android.launchFragmentInHiltContainer
-import org.groundplatform.android.launchFragmentWithNavController
-import org.groundplatform.android.model.TermsOfService
 import org.groundplatform.android.repository.TermsOfServiceRepository
 import org.groundplatform.android.system.NetworkManager
+import org.groundplatform.android.testrules.FragmentScenarioRule
+import org.groundplatform.domain.model.TermsOfService
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -53,6 +52,7 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 @Suppress("StringShouldBeRawString")
 class TermsOfServiceFragmentTest : BaseHiltTest() {
+  @get:Rule val fragmentScenario = FragmentScenarioRule()
 
   @Inject lateinit var fakeRemoteDataStore: FakeRemoteDataStore
   @Inject lateinit var termsOfServiceRepository: TermsOfServiceRepository
@@ -60,11 +60,7 @@ class TermsOfServiceFragmentTest : BaseHiltTest() {
 
   @BindValue @Mock lateinit var networkManager: NetworkManager
 
-  /**
-   * composeTestRule has to be created in the specific test file in order to access the required
-   * activity. [composeTestRule.activity]
-   */
-  @get:Rule override val composeTestRule = createAndroidComposeRule<ComponentActivity>()
+  @get:Rule val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
   override fun setUp() {
     super.setUp()
@@ -74,7 +70,9 @@ class TermsOfServiceFragmentTest : BaseHiltTest() {
 
   @Test
   fun `Toolbar is displayed`() {
-    launchFragmentInHiltContainer<TermsOfServiceFragment>(bundleOf(Pair("isViewOnly", false)))
+    fragmentScenario.launchFragmentInHiltContainer<TermsOfServiceFragment>(
+      bundleOf(Pair("isViewOnly", false))
+    )
 
     composeTestRule
       .onNodeWithText(composeTestRule.activity.getString(R.string.tos_title))
@@ -83,14 +81,18 @@ class TermsOfServiceFragmentTest : BaseHiltTest() {
 
   @Test
   fun `Toolbar Back Arrow is displayed`() {
-    launchFragmentInHiltContainer<TermsOfServiceFragment>(bundleOf(Pair("isViewOnly", true)))
+    fragmentScenario.launchFragmentInHiltContainer<TermsOfServiceFragment>(
+      bundleOf(Pair("isViewOnly", true))
+    )
 
     composeTestRule.onNodeWithContentDescription("Back").assertIsDisplayed()
   }
 
   @Test
   fun `Terms of service text should be displayed`() {
-    launchFragmentInHiltContainer<TermsOfServiceFragment>(bundleOf(Pair("isViewOnly", false)))
+    fragmentScenario.launchFragmentInHiltContainer<TermsOfServiceFragment>(
+      bundleOf(Pair("isViewOnly", false))
+    )
 
     composeTestRule.onNodeWithText("This is a heading\n\nSample terms of service\n\n").isDisplayed()
 
@@ -104,7 +106,9 @@ class TermsOfServiceFragmentTest : BaseHiltTest() {
 
   @Test
   fun `Agree button should not be enabled by default`() {
-    launchFragmentInHiltContainer<TermsOfServiceFragment>(bundleOf(Pair("isViewOnly", false)))
+    fragmentScenario.launchFragmentInHiltContainer<TermsOfServiceFragment>(
+      bundleOf(Pair("isViewOnly", false))
+    )
 
     getCheckbox().assertIsDisplayed()
     getButton().assertIsNotEnabled()
@@ -112,7 +116,9 @@ class TermsOfServiceFragmentTest : BaseHiltTest() {
 
   @Test
   fun `Agree button should be enabled when checkbox is clicked`() {
-    launchFragmentInHiltContainer<TermsOfServiceFragment>(bundleOf(Pair("isViewOnly", false)))
+    fragmentScenario.launchFragmentInHiltContainer<TermsOfServiceFragment>(
+      bundleOf(Pair("isViewOnly", false))
+    )
 
     getCheckbox().performClick()
 
@@ -121,7 +127,7 @@ class TermsOfServiceFragmentTest : BaseHiltTest() {
 
   @Test
   fun `Agree button should update preferences and navigate when pressed`() = runWithTestDispatcher {
-    launchFragmentWithNavController<TermsOfServiceFragment>(
+    fragmentScenario.launchFragmentWithNavController<TermsOfServiceFragment>(
       fragmentArgs = bundleOf(Pair("isViewOnly", false)),
       destId = R.id.terms_of_service_fragment,
       navControllerCallback = { navController = it },
@@ -138,7 +144,9 @@ class TermsOfServiceFragmentTest : BaseHiltTest() {
 
   @Test
   fun `View only mode hides controls`() = runWithTestDispatcher {
-    launchFragmentInHiltContainer<TermsOfServiceFragment>(bundleOf(Pair("isViewOnly", true)))
+    fragmentScenario.launchFragmentInHiltContainer<TermsOfServiceFragment>(
+      bundleOf(Pair("isViewOnly", true))
+    )
 
     getCheckbox().assertIsNotDisplayed()
     getButton().assertIsNotDisplayed()
@@ -147,7 +155,7 @@ class TermsOfServiceFragmentTest : BaseHiltTest() {
   @Test
   fun `Open SurveySelectorFragment with survey ID`() = runWithTestDispatcher {
     val uri = Uri.parse("https://groundplatform.org/android/survey/surveyId")
-    launchFragmentWithNavController<TermsOfServiceFragment>(
+    fragmentScenario.launchFragmentWithNavController<TermsOfServiceFragment>(
       fragmentArgs = bundleOf("isViewOnly" to false),
       destId = R.id.terms_of_service_fragment,
       navControllerCallback = { navController = it },
@@ -161,7 +169,7 @@ class TermsOfServiceFragmentTest : BaseHiltTest() {
 
   @Test
   fun `Open SurveySelectorFragment without survey ID`() = runWithTestDispatcher {
-    launchFragmentWithNavController<TermsOfServiceFragment>(
+    fragmentScenario.launchFragmentWithNavController<TermsOfServiceFragment>(
       fragmentArgs = bundleOf("isViewOnly" to false),
       destId = R.id.terms_of_service_fragment,
       navControllerCallback = { navController = it },

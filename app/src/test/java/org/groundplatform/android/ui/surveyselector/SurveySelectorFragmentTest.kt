@@ -21,18 +21,17 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToKey
 import androidx.core.os.bundleOf
 import androidx.navigation.NavController
-import androidx.test.espresso.Espresso.onView
-import androidx.test.espresso.action.ViewActions.click
-import androidx.test.espresso.assertion.ViewAssertions.matches
-import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
-import androidx.test.espresso.matcher.ViewMatchers.withText
 import com.google.common.truth.Truth.assertThat
 import dagger.hilt.android.testing.BindValue
 import dagger.hilt.android.testing.HiltAndroidTest
+import dagger.hilt.android.testing.UninstallModules
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.asFlow
@@ -40,17 +39,18 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import org.groundplatform.android.BaseHiltTest
 import org.groundplatform.android.FakeData
 import org.groundplatform.android.R
-import org.groundplatform.android.launchFragmentInHiltContainer
-import org.groundplatform.android.launchFragmentWithNavController
+import org.groundplatform.android.di.UserRepositoryModule
 import org.groundplatform.android.model.SurveyListItem
-import org.groundplatform.android.proto.Survey
 import org.groundplatform.android.repository.SurveyRepository
-import org.groundplatform.android.repository.UserRepository
 import org.groundplatform.android.system.auth.FakeAuthenticationManager
+import org.groundplatform.android.testrules.FragmentScenarioRule
+import org.groundplatform.android.ui.surveyselector.components.SURVEY_LIST_TEST_TAG
+import org.groundplatform.android.ui.surveyselector.components.formatSectionTitle
 import org.groundplatform.android.usecases.survey.ActivateSurveyUseCase
 import org.groundplatform.android.usecases.survey.ListAvailableSurveysUseCase
 import org.groundplatform.android.usecases.survey.RemoveOfflineSurveyUseCase
-import org.hamcrest.Matchers.not
+import org.groundplatform.domain.model.Survey
+import org.groundplatform.domain.repository.UserRepositoryInterface
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -65,11 +65,12 @@ import org.robolectric.shadows.ShadowToast
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltAndroidTest
+@UninstallModules(UserRepositoryModule::class)
 @RunWith(RobolectricTestRunner::class)
 class SurveySelectorFragmentTest : BaseHiltTest() {
 
   @BindValue @Mock lateinit var surveyRepository: SurveyRepository
-  @BindValue @Mock lateinit var userRepository: UserRepository
+  @BindValue @Mock lateinit var userRepository: UserRepositoryInterface
   @BindValue @Mock lateinit var activateSurvey: ActivateSurveyUseCase
   @BindValue @Mock lateinit var listAvailableSurveysUseCase: ListAvailableSurveysUseCase
   @BindValue @Mock lateinit var removeOfflineSurveyUseCase: RemoveOfflineSurveyUseCase
@@ -78,7 +79,8 @@ class SurveySelectorFragmentTest : BaseHiltTest() {
   private lateinit var fragment: SurveySelectorFragment
   private lateinit var navController: NavController
 
-  @get:Rule override val composeTestRule = createAndroidComposeRule<ComponentActivity>()
+  @get:Rule val composeTestRule = createAndroidComposeRule<ComponentActivity>()
+  @get:Rule val fragmentScenario = FragmentScenarioRule()
 
   @Before
   override fun setUp() {
@@ -92,25 +94,21 @@ class SurveySelectorFragmentTest : BaseHiltTest() {
     setUpFragment()
 
     composeTestRule
-      .onNodeWithText(
-        formatSectionTitle(composeTestRule.activity.getString(R.string.section_on_device), 0)
-      )
+      .onNodeWithTag(SURVEY_LIST_TEST_TAG)
+      .performScrollToKey(R.string.section_on_device)
       .assertIsDisplayed()
     composeTestRule
-      .onNodeWithText(
-        formatSectionTitle(composeTestRule.activity.getString(R.string.section_shared_with_me), 2)
-      )
+      .onNodeWithTag(SURVEY_LIST_TEST_TAG)
+      .performScrollToKey(R.string.section_shared_with_me)
       .assertIsDisplayed()
     composeTestRule
-      .onNodeWithText(
-        formatSectionTitle(composeTestRule.activity.getString(R.string.section_public), 0)
-      )
+      .onNodeWithTag(SURVEY_LIST_TEST_TAG)
+      .performScrollToKey(R.string.section_public)
       .assertIsDisplayed()
 
     composeTestRule
-      .onNodeWithText(
-        formatSectionTitle(composeTestRule.activity.getString(R.string.section_shared_with_me), 2)
-      )
+      .onNodeWithTag(SURVEY_LIST_TEST_TAG)
+      .performScrollToKey(R.string.section_shared_with_me)
       .performClick()
 
     composeTestRule.onNodeWithText(TEST_SURVEY_1.title).assertIsDisplayed()
@@ -144,20 +142,13 @@ class SurveySelectorFragmentTest : BaseHiltTest() {
     setSurveyList(listOf(TEST_SURVEY_1, TEST_SURVEY_2))
     whenever(activateSurvey(TEST_SURVEY_2.id)).thenReturn(true)
 
-    launchFragmentWithNavController<SurveySelectorFragment>(
+    fragmentScenario.launchFragmentWithNavController<SurveySelectorFragment>(
       fragmentArgs = bundleOf(Pair("shouldExitApp", false), Pair("surveyId", "")),
       destId = R.id.surveySelectorFragment,
       navControllerCallback = { navController = it },
     )
     advanceUntilIdle()
-
-    composeTestRule
-      .onNodeWithText(
-        formatSectionTitle(composeTestRule.activity.getString(R.string.section_shared_with_me), 2)
-      )
-      .performClick()
-    advanceUntilIdle()
-    composeTestRule.onNodeWithText(TEST_SURVEY_2.title).performClick()
+    composeTestRule.onNodeWithText(TEST_SURVEY_2.title).performScrollTo().performClick()
     advanceUntilIdle()
 
     // Assert that navigation to home screen was requested
@@ -172,20 +163,13 @@ class SurveySelectorFragmentTest : BaseHiltTest() {
 
     setSurveyList(listOf(TEST_SURVEY_1, TEST_SURVEY_2))
 
-    launchFragmentWithNavController<SurveySelectorFragment>(
+    fragmentScenario.launchFragmentWithNavController<SurveySelectorFragment>(
       fragmentArgs = bundleOf(Pair("shouldExitApp", false), Pair("surveyId", "")),
       destId = R.id.surveySelectorFragment,
       navControllerCallback = { navController = it },
     )
     advanceUntilIdle()
-
-    // Click second item
-    composeTestRule
-      .onNodeWithText(
-        formatSectionTitle(composeTestRule.activity.getString(R.string.section_shared_with_me), 2)
-      )
-      .performClick()
-    composeTestRule.onNodeWithText(TEST_SURVEY_2.title).performClick()
+    composeTestRule.onNodeWithText(TEST_SURVEY_2.title).performScrollTo().performClick()
     advanceUntilIdle()
 
     // Assert survey is activated.
@@ -219,7 +203,7 @@ class SurveySelectorFragmentTest : BaseHiltTest() {
     setSurveyList(listOf(TEST_SURVEY_1, TEST_SURVEY_2))
     setUpFragment()
 
-    onView(withText("Sign out")).check(matches(not(isDisplayed())))
+    composeTestRule.onNodeWithText("Sign out").assertDoesNotExist()
   }
 
   @Test
@@ -227,7 +211,7 @@ class SurveySelectorFragmentTest : BaseHiltTest() {
     setSurveyList(listOf())
     setUpFragment()
 
-    onView(withText("Sign out")).check(matches(isDisplayed())).perform(click())
+    composeTestRule.onNodeWithText("Sign out").assertIsDisplayed().performClick()
     verify(userRepository, times(1)).signOut()
   }
 
@@ -241,7 +225,7 @@ class SurveySelectorFragmentTest : BaseHiltTest() {
   private fun setUpFragment(
     optBundle: Bundle = bundleOf(Pair("shouldExitApp", false), Pair("surveyId", ""))
   ) = runWithTestDispatcher {
-    launchFragmentInHiltContainer<SurveySelectorFragment>(optBundle) {
+    fragmentScenario.launchFragmentInHiltContainer<SurveySelectorFragment>(optBundle) {
       fragment = this as SurveySelectorFragment
     }
 

@@ -22,27 +22,31 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ProgressBar
 import androidx.constraintlayout.widget.Guideline
-import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.doOnLayout
 import androidx.hilt.navigation.fragment.hiltNavGraphViewModels
 import androidx.interpolator.view.animation.FastOutSlowInInterpolator
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.asFlow
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
 import androidx.viewpager2.widget.ViewPager2
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
-import kotlinx.coroutines.delay
+import kotlin.getValue
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import org.groundplatform.android.R
 import org.groundplatform.android.databinding.DataCollectionFragBinding
-import org.groundplatform.android.model.task.Task
 import org.groundplatform.android.ui.common.AbstractFragment
 import org.groundplatform.android.ui.common.BackPressListener
 import org.groundplatform.android.ui.components.ConfirmationDialog
 import org.groundplatform.android.ui.home.HomeScreenFragmentDirections
+import org.groundplatform.android.ui.main.MainViewModel
 import org.groundplatform.android.util.renderComposableDialog
+import org.groundplatform.android.util.systemInsets
+import org.groundplatform.domain.model.locationofinterest.LoiReport
+import org.groundplatform.domain.model.task.Task
 
 /** Fragment allowing the user to collect data to complete a task. */
 @AndroidEntryPoint
@@ -50,6 +54,7 @@ class DataCollectionFragment : AbstractFragment(), BackPressListener {
   @Inject lateinit var viewPagerAdapterFactory: DataCollectionViewPagerAdapterFactory
 
   val viewModel: DataCollectionViewModel by hiltNavGraphViewModels(R.id.data_collection)
+  private val mainViewModel: MainViewModel by lazy { getViewModel(MainViewModel::class.java) }
 
   private lateinit var binding: DataCollectionFragBinding
   private lateinit var progressBar: ProgressBar
@@ -69,31 +74,35 @@ class DataCollectionFragment : AbstractFragment(), BackPressListener {
     guideline = binding.progressBarGuideline
     getAbstractActivity().setSupportActionBar(binding.dataCollectionToolbar)
 
-    binding.dataCollectionToolbar.setNavigationOnClickListener { showExitWarningDialog() }
+    binding.dataCollectionToolbar.setNavigationOnClickListener {
+      if (viewModel.uiState.value is DataCollectionUiState.TaskSubmitted) {
+        navigateBack()
+      } else {
+        showExitWarningDialog()
+      }
+    }
 
     return binding.root
   }
 
   override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
     super.onViewCreated(view, savedInstanceState)
-    binding.lifecycleOwner = viewLifecycleOwner
 
     viewPager.isUserInputEnabled = false
     viewPager.offscreenPageLimit = 1
 
-    viewPager.registerOnPageChangeCallback(
-      object : ViewPager2.OnPageChangeCallback() {
-        override fun onPageScrollStateChanged(state: Int) {
-          super.onPageScrollStateChanged(state)
-          if (state == ViewPager2.SCROLL_STATE_IDLE) {
-            viewLifecycleOwner.lifecycleScope.launch {
-              delay(100) // Wait for the keyboard to close
-              setProgressBarPosition(view)
-            }
+    viewLifecycleOwner.lifecycleScope.launch {
+      viewLifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+        combine(mainViewModel.windowInsets.asFlow(), viewModel.footerVerticalPosition) {
+            insets,
+            position ->
+            Pair(insets, position)
           }
-        }
+          .collect { (insets, position) ->
+            setProgressBarPosition(position - insets.systemInsets().top)
+          }
       }
-    )
+    }
 
     // Collect UI state safely across the Fragment view lifecycle.
     viewLifecycleOwner.lifecycleScope.launch {
@@ -119,8 +128,8 @@ class DataCollectionFragment : AbstractFragment(), BackPressListener {
     when (uiState) {
       // Ensure adapter has the task list; then jump to the current position.
       is DataCollectionUiState.Ready -> {
-        binding.jobName = uiState.job.name
-        binding.loiName = uiState.loiName
+        binding.dataCollectionToolbar.title = uiState.job.name
+        binding.dataCollectionToolbar.subtitle = uiState.loiName
         loadTasks(uiState.tasks, uiState.position)
       }
 
@@ -129,7 +138,9 @@ class DataCollectionFragment : AbstractFragment(), BackPressListener {
       }
 
       is DataCollectionUiState.TaskSubmitted -> {
-        onTaskSubmitted()
+        binding.dataCollectionToolbar.title = getString(R.string.data_collection_complete)
+        binding.dataCollectionToolbar.subtitle = null
+        onTaskSubmitted(uiState.loiReport)
       }
 
       is DataCollectionUiState.Loading,
@@ -139,21 +150,11 @@ class DataCollectionFragment : AbstractFragment(), BackPressListener {
     }
   }
 
-  private fun setProgressBarPosition(view: View) {
-    val buttonContainer = view.findViewById<View>(R.id.action_buttons) ?: return
+  private fun setProgressBarPosition(topPosition: Float) {
+    val guidelineTop = topPosition.toInt()
 
-    buttonContainer.doOnLayout {
-      val anchorLocation = IntArray(2)
-      it.getLocationInWindow(anchorLocation)
-
-      val windowInsets = WindowInsetsCompat.toWindowInsetsCompat(buttonContainer.rootWindowInsets)
-      val systemBarsInsets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
-
-      val guidelineTop = anchorLocation[1] - systemBarsInsets.top
-
-      if (guidelineTop > 0) {
-        guideline.setGuidelineBegin(guidelineTop)
-      }
+    if (guidelineTop > 0) {
+      guideline.setGuidelineBegin(guidelineTop)
     }
   }
 
@@ -171,13 +172,12 @@ class DataCollectionFragment : AbstractFragment(), BackPressListener {
     updateProgressBar(taskPosition, true)
   }
 
-  private fun onTaskSubmitted() {
-    // Hide close button
-    binding.dataCollectionToolbar.navigationIcon = null
+  private fun onTaskSubmitted(loiReport: LoiReport?) {
+    viewPager.adapter = null
 
     // Display a confirmation dialog and move to home screen after that.
     renderComposableDialog {
-      DataSubmissionConfirmationScreen {
+      DataSubmissionConfirmationScreen(loiReport) {
         findNavController().navigate(HomeScreenFragmentDirections.showHomeScreen())
       }
     }
@@ -203,7 +203,7 @@ class DataCollectionFragment : AbstractFragment(), BackPressListener {
   }
 
   override fun onBack(): Boolean {
-    if (viewModel.uiState.value == DataCollectionUiState.TaskSubmitted) {
+    if (viewModel.uiState.value is DataCollectionUiState.TaskSubmitted) {
       // Pressing back button after submitting task should navigate back to home screen.
       navigateBack()
       return true

@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -45,18 +46,24 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.Font
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.google.android.gms.auth.api.signin.GoogleSignInStatusCodes.SIGN_IN_CANCELLED
+import com.google.android.gms.common.api.ApiException
+import com.google.android.gms.common.api.Status
+import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.firestore.FirebaseFirestoreException.Code
+import org.groundplatform.android.BuildConfig
 import org.groundplatform.android.R
-import org.groundplatform.android.system.auth.SignInState
 import org.groundplatform.android.ui.common.ExcludeFromJacocoGeneratedReport
 import org.groundplatform.android.ui.components.LoadingDialog
-import org.groundplatform.android.ui.theme.AppTheme
+import org.groundplatform.android.ui.components.PermissionDeniedDialog
+import org.groundplatform.android.util.isPermissionDeniedException
+import org.groundplatform.domain.model.auth.SignInState
+import org.groundplatform.ui.theme.AppTheme
 
 const val BUTTON_TEST_TAG = "google_sign_in_button"
 
@@ -66,19 +73,27 @@ const val BUTTON_TEST_TAG = "google_sign_in_button"
  * @param viewModel the view model used to manage sign-in state and network connectivity.
  */
 @Composable
-fun SignInScreen(viewModel: SignInViewModel = hiltViewModel()) {
+fun SignInScreen(onCloseApp: () -> Unit, viewModel: SignInViewModel = hiltViewModel()) {
   val connected by viewModel.networkAvailable.collectAsStateWithLifecycle()
   val signInState by viewModel.signInState.collectAsStateWithLifecycle()
 
   SignInContent(
     connected = connected,
     signInState = signInState,
-    onSignInClick = { viewModel.onSignInButtonClick() },
+    onSignInClick = viewModel::onSignInButtonClick,
+    onSignOutClick = viewModel::onSignOutButtonClick,
+    onCloseApp = onCloseApp,
   )
 }
 
 @Composable
-private fun SignInContent(connected: Boolean, signInState: SignInState, onSignInClick: () -> Unit) {
+private fun SignInContent(
+  connected: Boolean,
+  signInState: SignInState,
+  onSignInClick: () -> Unit,
+  onSignOutClick: () -> Unit,
+  onCloseApp: () -> Unit,
+) {
   val snackbarHostState = remember { SnackbarHostState() }
   val networkErrorMessage = stringResource(R.string.network_error_when_signing_in)
 
@@ -90,6 +105,8 @@ private fun SignInContent(connected: Boolean, signInState: SignInState, onSignIn
 
   if (signInState is SignInState.SigningIn) {
     LoadingDialog(R.string.signing_in)
+  } else if (signInState is SignInState.Error) {
+    SignInErrorUi(signInState, onSignOutClick, onCloseApp, snackbarHostState)
   }
 
   Box(modifier = Modifier.fillMaxSize()) {
@@ -116,6 +133,39 @@ private fun SignInContent(connected: Boolean, signInState: SignInState, onSignIn
     SnackbarHost(hostState = snackbarHostState, modifier = Modifier.align(Alignment.BottomCenter))
   }
 }
+
+@Composable
+private fun SignInErrorUi(
+  signInState: SignInState.Error,
+  onSignOutClick: () -> Unit,
+  onCloseApp: () -> Unit,
+  snackbarHostState: SnackbarHostState,
+) {
+  when {
+    signInState.error.isPermissionDeniedException() -> {
+      PermissionDeniedDialog(
+        // TODO: Read url from Firestore config/properties/signUpUrl
+        // Issue URL: https://github.com/google/ground-android/issues/2402
+        signupLink = BuildConfig.SIGNUP_FORM_LINK,
+        onSignOut = onSignOutClick,
+        onCloseApp = onCloseApp,
+      )
+    }
+
+    signInState.error.isSignInCancelledException() -> {
+      /* Do nothing, as this was a user choice, not a system error. */
+    }
+
+    // For any other type of error, show a generic message.
+    else -> {
+      val unknownErrorMessage = stringResource(R.string.something_went_wrong)
+      LaunchedEffect(signInState.error) { snackbarHostState.showSnackbar(unknownErrorMessage) }
+    }
+  }
+}
+
+private fun Throwable.isSignInCancelledException() =
+  this is ApiException && statusCode == SIGN_IN_CANCELLED
 
 @Composable
 private fun BackgroundOverlay(modifier: Modifier = Modifier) {
@@ -147,9 +197,7 @@ private fun LogoAndTitle(modifier: Modifier = Modifier) {
     Text(
       text = stringResource(id = R.string.app_name),
       color = Color.White,
-      fontSize = 60.sp,
-      fontFamily = FontFamily(Font(R.font.display_500)),
-      letterSpacing = 0.6.sp,
+      style = MaterialTheme.typography.displayLarge,
     )
   }
 }
@@ -190,7 +238,13 @@ private fun GoogleSignInButton(
 @ExcludeFromJacocoGeneratedReport
 private fun SignInScreenSignedOutPreview() {
   AppTheme {
-    SignInContent(connected = true, signInState = SignInState.SignedOut, onSignInClick = {})
+    SignInContent(
+      connected = true,
+      signInState = SignInState.SignedOut,
+      onSignInClick = {},
+      onSignOutClick = {},
+      onCloseApp = {},
+    )
   }
 }
 
@@ -199,7 +253,13 @@ private fun SignInScreenSignedOutPreview() {
 @ExcludeFromJacocoGeneratedReport
 private fun SignInScreenSigningInPreview() {
   AppTheme {
-    SignInContent(connected = true, signInState = SignInState.SigningIn, onSignInClick = {})
+    SignInContent(
+      connected = true,
+      signInState = SignInState.SigningIn,
+      onSignInClick = {},
+      onSignOutClick = {},
+      onCloseApp = {},
+    )
   }
 }
 
@@ -208,6 +268,59 @@ private fun SignInScreenSigningInPreview() {
 @ExcludeFromJacocoGeneratedReport
 private fun SignInScreenNotConnectedPreview() {
   AppTheme {
-    SignInContent(connected = false, signInState = SignInState.SignedOut, onSignInClick = {})
+    SignInContent(
+      connected = false,
+      signInState = SignInState.SignedOut,
+      onSignInClick = {},
+      onSignOutClick = {},
+      onCloseApp = {},
+    )
+  }
+}
+
+@Preview(showBackground = true)
+@Composable
+@ExcludeFromJacocoGeneratedReport
+private fun SignInScreenPermissionDeniedErrorPreview() {
+  AppTheme {
+    val error = FirebaseFirestoreException("Permission denied", Code.PERMISSION_DENIED)
+    SignInContent(
+      connected = true,
+      signInState = SignInState.Error(error),
+      onSignInClick = {},
+      onSignOutClick = {},
+      onCloseApp = {},
+    )
+  }
+}
+
+@Preview(showBackground = true)
+@Composable
+@ExcludeFromJacocoGeneratedReport
+private fun SignInScreenUserCancelledErrorPreview() {
+  AppTheme {
+    val error = ApiException(Status(SIGN_IN_CANCELLED))
+    SignInContent(
+      connected = true,
+      signInState = SignInState.Error(error),
+      onSignInClick = {},
+      onSignOutClick = {},
+      onCloseApp = {},
+    )
+  }
+}
+
+@Preview(showBackground = true)
+@Composable
+@ExcludeFromJacocoGeneratedReport
+private fun SignInScreenUnknownErrorPreview() {
+  AppTheme {
+    SignInContent(
+      connected = true,
+      signInState = SignInState.Error(Error("Unknown error")),
+      onSignInClick = {},
+      onSignOutClick = {},
+      onCloseApp = {},
+    )
   }
 }
