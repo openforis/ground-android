@@ -79,8 +79,8 @@ android {
         minSdkVersion libs.versions.androidMinSdk.get().toInteger()
         targetSdkVersion libs.versions.androidTargetSdk.get().toInteger()
 
-        versionCode 45
-        versionName "0.3.6"
+        versionCode 49
+        versionName "0.3.7"
         multiDexEnabled = true
         // For rendering vector map markers.
         vectorDrawables.useSupportLibrary = true
