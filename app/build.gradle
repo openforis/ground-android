@@ -171,6 +171,12 @@ android {
     }
 
     namespace = 'org.groundplatform.android'
+
+    bundle {
+        language {
+            enableSplit = false
+        }
+    }
 }
 
 configurations {
