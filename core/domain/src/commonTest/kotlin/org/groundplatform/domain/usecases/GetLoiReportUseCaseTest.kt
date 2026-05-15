@@ -20,7 +20,6 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
-import org.groundplatform.domain.helpers.FakeLocationOfInterestRepository
 import org.groundplatform.domain.model.geometry.Coordinates
 import org.groundplatform.domain.model.geometry.Geometry
 import org.groundplatform.domain.model.geometry.LineString
@@ -28,14 +27,22 @@ import org.groundplatform.domain.model.geometry.LinearRing
 import org.groundplatform.domain.model.geometry.MultiPolygon
 import org.groundplatform.domain.model.geometry.Point
 import org.groundplatform.domain.model.geometry.Polygon
+import org.groundplatform.domain.model.locationofinterest.AuditInfo
 import org.groundplatform.domain.model.locationofinterest.LoiProperties
 import org.groundplatform.domain.model.locationofinterest.LoiReport
 import org.groundplatform.domain.model.locationofinterest.generateProperties
+import org.groundplatform.testing.FakeDataGenerator
+import org.groundplatform.testing.FakeLocationOfInterestRepository
+import org.groundplatform.testing.FakeSurveyRepository
+import org.groundplatform.testing.FakeUserRepository
 
 @Suppress("MultilineRawStringIndentation")
 class GetLoiReportUseCaseTest {
   private val loiRepository = FakeLocationOfInterestRepository()
-  private val getLoiReportUseCase = GetLoiReportUseCase(loiRepository)
+  private val userRepository = FakeUserRepository()
+  private val surveyRepository = FakeSurveyRepository()
+  private val getLoiReportUseCase =
+    GetLoiReportUseCase(loiRepository, userRepository, surveyRepository)
 
   @Test
   fun `Should get a report with the correct geoJson for a Point`() = runTest {
@@ -52,7 +59,7 @@ class GetLoiReportUseCaseTest {
         "properties": {"name": "Point test"},
         "geometry": {
           "type": "Point",
-          "coordinates": [-89.0, 41.0]
+          "coordinates": [-89.000000, 41.000000]
         }
       }
       """
@@ -82,7 +89,7 @@ class GetLoiReportUseCaseTest {
         "geometry": {
           "type": "Polygon",
           "coordinates": [
-            [[0.0, 0.0], [0.0, 1.0], [1.0, 1.0], [0.0, 0.0]]
+            [[0.000000, 0.000000], [0.000000, 1.000000], [1.000000, 1.000000], [0.000000, 0.000000]]
           ]
         }
       }
@@ -125,8 +132,8 @@ class GetLoiReportUseCaseTest {
         "geometry": {
           "type": "Polygon",
           "coordinates": [
-            [[0.0, 0.0], [0.0, 10.0], [10.0, 10.0], [0.0, 0.0]],
-            [[2.0, 2.0], [2.0, 3.0], [3.0, 3.0], [2.0, 2.0]]
+            [[0.000000, 0.000000], [0.000000, 10.000000], [10.000000, 10.000000], [0.000000, 0.000000]],
+            [[2.000000, 2.000000], [2.000000, 3.000000], [3.000000, 3.000000], [2.000000, 2.000000]]
           ]
         }
       }
@@ -169,8 +176,8 @@ class GetLoiReportUseCaseTest {
         "geometry": {
           "type": "MultiPolygon",
           "coordinates": [
-            [[[0.0, 0.0], [0.0, 1.0], [1.0, 1.0], [0.0, 0.0]]],
-            [[[5.0, 5.0], [5.0, 6.0], [6.0, 6.0], [5.0, 5.0]]]
+            [[[0.000000, 0.000000], [0.000000, 1.000000], [1.000000, 1.000000], [0.000000, 0.000000]]],
+            [[[5.000000, 5.000000], [5.000000, 6.000000], [6.000000, 6.000000], [5.000000, 5.000000]]]
           ]
         }
       }
@@ -193,7 +200,7 @@ class GetLoiReportUseCaseTest {
         "properties": {"name": "LineString test"},
         "geometry": {
           "type": "LineString",
-          "coordinates": [[20.0, 10.0], [40.0, 30.0], [60.0, 50.0]]
+          "coordinates": [[20.000000, 10.000000], [40.000000, 30.000000], [60.000000, 50.000000]]
         }
       }
       """
@@ -216,7 +223,7 @@ class GetLoiReportUseCaseTest {
         "properties": {},
         "geometry": {
           "type": "Point",
-          "coordinates": [0.0, 0.0]
+          "coordinates": [0.000000, 0.000000]
         }
       }
       """
@@ -291,13 +298,40 @@ class GetLoiReportUseCaseTest {
         "properties": {"name": "Name test"},
         "geometry": {
           "type": "Point",
-          "coordinates": [0.0, 0.0]
+          "coordinates": [0.000000, 0.000000]
         }
       }
       """
         .trimIndent()
 
     assertEquals(Json.parseToJsonElement(expectedGeoJson), loiReport.geoJson)
+  }
+
+  @Test
+  fun `Should populate loiName, userName and dateMillis from the inputs`() = runTest {
+    userRepository.currentUser = FakeDataGenerator.newUser(displayName = "John Doe")
+    loiRepository.offlineLoi =
+      loiRepository.offlineLoi.copy(
+        lastModified = AuditInfo(user = userRepository.currentUser, clientTimestamp = 987654321L)
+      )
+
+    val loiReport =
+      getLoiReportUseCase.invoke(loiName = "Test LOI", loiId = "loiId", surveyId = "surveyId")!!
+
+    assertEquals("Test LOI", loiReport.loiName)
+    assertEquals("John Doe", loiReport.userName)
+    assertEquals(987654321L, loiReport.dateMillis)
+  }
+
+  @Test
+  fun `Should populate surveyName from the offline survey`() = runTest {
+    surveyRepository.offlineSurveys =
+      listOf(FakeDataGenerator.newSurvey(id = "surveyId", title = "Restoration areas"))
+
+    val loiReport =
+      getLoiReportUseCase.invoke(loiName = "loiName", loiId = "loiId", surveyId = "surveyId")!!
+
+    assertEquals("Restoration areas", loiReport.surveyName)
   }
 
   private suspend fun invokeUseCase(geometry: Geometry, properties: LoiProperties): LoiReport {

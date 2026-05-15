@@ -182,13 +182,6 @@
   <string name="clear">ລ້າງ</string>
   <string name="text_task_data_character_limit">ສູງສຸດ 255 ຕົວອັກສອນ</string>
   <string name="area_message">ພື້ນທີ່: %s</string>
-  <string name="lang_english">ພາສາອັງກິດ</string>
-  <string name="lang_french">ພາສາຝຣັ່ງ</string>
-  <string name="lang_spanish">ພາສາສະແປນ</string>
-  <string name="lang_portuguese">ພາສາໂປຣຕຸເກດ</string>
-  <string name="lang_vietnamese">ພາສາຫວຽດນາມ</string>
-  <string name="lang_thai">ພາສາໄທ</string>
-  <string name="lang_lao">ພາສາລາວ</string>
   <string name="access_restricted">ຈຳກັດການເຂົ້າເຖິງ</string>
   <string name="access_unlisted">ບໍ່ສະແດງໃນລາຍການ</string>
   <string name="access_public">ສາທາລະນະ</string>
@@ -214,5 +207,8 @@
   <string name="photo_save_failed_desc">ບໍ່ສາມາດບັນທຶກຮູບພາບທີ່ຖ່າຍໄດ້. ກະລຸນາລອງໃໝ່ອີກຄັ້ງ.</string>
   <string name="share_location">ແບ່ງປັນຕຳແໜ່ງ</string>
   <string name="scan_this_qr_to_download_geojson">ສະແກນ QR ນີ້ເພື່ອເບິ່ງ GeoJSON</string>
-  <string name="share">ແບ່ງປັນ</string>
+
+  <string name="join_survey">ເຂົ້າຮ່ວມແບບສຳຫຼວດ</string>
+  <string name="invalid_survey_qr_code">ບໍ່ຮັບຮູ້ລະຫັດ QR ແບບສຳຫຼວດນີ້</string>
+  <string name="join_survey_confirm_title">ເຂົ້າຮ່ວມແບບສຳຫຼວດນີ້ບໍ?</string>
 </resources>

@@ -26,15 +26,15 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.groundplatform.android.BaseHiltTest
-import org.groundplatform.android.repository.MapStateRepository
-import org.groundplatform.android.repository.OfflineAreaRepository
-import org.groundplatform.android.repository.SurveyRepository
 import org.groundplatform.android.system.FINE_LOCATION_UPDATES_REQUEST
 import org.groundplatform.android.system.LocationManager
 import org.groundplatform.android.system.PermissionsManager
 import org.groundplatform.android.system.SettingsManager
 import org.groundplatform.android.ui.components.MapFloatingActionButtonType
 import org.groundplatform.domain.repository.LocationOfInterestRepositoryInterface
+import org.groundplatform.domain.repository.MapStateRepositoryInterface
+import org.groundplatform.domain.repository.OfflineAreaRepositoryInterface
+import org.groundplatform.domain.repository.SurveyRepositoryInterface
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -49,11 +49,11 @@ import org.robolectric.RobolectricTestRunner
 class BaseMapViewModelTest : BaseHiltTest() {
 
   @Mock lateinit var locationManager: LocationManager
-  @Mock lateinit var mapStateRepository: MapStateRepository
+  @Mock lateinit var mapStateRepository: MapStateRepositoryInterface
   @Mock lateinit var settingsManager: SettingsManager
-  @Mock lateinit var offlineAreaRepository: OfflineAreaRepository
+  @Mock lateinit var offlineAreaRepository: OfflineAreaRepositoryInterface
   @Mock lateinit var permissionsManager: PermissionsManager
-  @Mock lateinit var surveyRepository: SurveyRepository
+  @Mock lateinit var surveyRepository: SurveyRepositoryInterface
   @Mock lateinit var locationOfInterestRepository: LocationOfInterestRepositoryInterface
 
   private lateinit var viewModel: BaseMapViewModel

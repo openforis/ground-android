@@ -26,12 +26,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 import org.groundplatform.android.di.coroutines.IoDispatcher
-import org.groundplatform.android.model.imagery.RemoteMogTileSource
-import org.groundplatform.android.model.imagery.TileSource
-import org.groundplatform.android.model.map.CameraPosition
-import org.groundplatform.android.repository.MapStateRepository
-import org.groundplatform.android.repository.OfflineAreaRepository
-import org.groundplatform.android.repository.SurveyRepository
 import org.groundplatform.android.system.LocationManager
 import org.groundplatform.android.system.NetworkManager
 import org.groundplatform.android.system.PermissionsManager
@@ -39,10 +33,16 @@ import org.groundplatform.android.system.SettingsManager
 import org.groundplatform.android.ui.common.BaseMapViewModel
 import org.groundplatform.android.ui.offlineareas.selector.model.OfflineAreaSelectorEvent
 import org.groundplatform.android.ui.offlineareas.selector.model.OfflineAreaSelectorState
-import org.groundplatform.android.util.toMb
-import org.groundplatform.android.util.toMbString
+import org.groundplatform.android.ui.util.toMbString
+import org.groundplatform.domain.model.imagery.RemoteMogTileSource
+import org.groundplatform.domain.model.imagery.TileSource
 import org.groundplatform.domain.model.map.Bounds
+import org.groundplatform.domain.model.map.CameraPosition
+import org.groundplatform.domain.model.util.toMb
 import org.groundplatform.domain.repository.LocationOfInterestRepositoryInterface
+import org.groundplatform.domain.repository.MapStateRepositoryInterface
+import org.groundplatform.domain.repository.OfflineAreaRepositoryInterface
+import org.groundplatform.domain.repository.SurveyRepositoryInterface
 import timber.log.Timber
 
 private const val MIN_DOWNLOAD_ZOOM_LEVEL = 9
@@ -52,11 +52,11 @@ private const val MAX_AREA_DOWNLOAD_SIZE_MB = 50
 class OfflineAreaSelectorViewModel
 @Inject
 internal constructor(
-  private val offlineAreaRepository: OfflineAreaRepository,
+  private val offlineAreaRepository: OfflineAreaRepositoryInterface,
   @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
   locationManager: LocationManager,
-  surveyRepository: SurveyRepository,
-  mapStateRepository: MapStateRepository,
+  surveyRepository: SurveyRepositoryInterface,
+  mapStateRepository: MapStateRepositoryInterface,
   settingsManager: SettingsManager,
   permissionsManager: PermissionsManager,
   locationOfInterestRepository: LocationOfInterestRepositoryInterface,

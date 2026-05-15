@@ -16,17 +16,10 @@
 package org.groundplatform.android.ui.datacollection.tasks
 
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInWindow
+import org.groundplatform.android.ui.datacollection.LoiNameAction
+import org.groundplatform.android.ui.datacollection.TaskPosition
+import org.groundplatform.android.ui.datacollection.components.ButtonAction
 import org.groundplatform.android.ui.datacollection.components.ButtonActionState
 import org.groundplatform.android.ui.datacollection.components.InstructionData
 import org.groundplatform.android.ui.datacollection.components.InstructionsDialog
@@ -35,54 +28,41 @@ import org.groundplatform.android.ui.datacollection.components.TaskFooter
 import org.groundplatform.android.ui.datacollection.components.TaskHeader
 import org.groundplatform.android.ui.datacollection.components.TaskViewLayout
 
+/** A shared Composable that provides the standard layout for a task. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TaskScreen(
   taskHeader: TaskHeader?,
+  taskPosition: TaskPosition? = null,
   instructionData: InstructionData? = null,
   taskActionButtonsStates: List<ButtonActionState>,
   shouldShowLoiNameDialog: Boolean = false,
   showInstructionsDialog: Boolean = false,
   loiName: String = "",
-  onFooterPositionUpdated: (Float) -> Unit,
-  onAction: (TaskScreenAction) -> Unit,
+  onButtonClicked: (ButtonAction) -> Unit = {},
+  onLoiNameAction: (LoiNameAction) -> Unit = {},
+  onInstructionsDismiss: () -> Unit = {},
   footerContent: @Composable (() -> Unit)? = null,
   taskBody: @Composable () -> Unit,
 ) {
-  val isKeyboardOpen = WindowInsets.isImeVisible
-  var footerPositionY by remember { mutableFloatStateOf(0f) }
-
-  // Update footer position whenever layout changes or keyboard is toggled.
-  LaunchedEffect(isKeyboardOpen, footerPositionY) { onFooterPositionUpdated(footerPositionY) }
-
   TaskViewLayout(
     header = taskHeader,
     footer = {
       TaskFooter(
-        modifier = Modifier.onGloballyPositioned { footerPositionY = it.positionInWindow().y },
+        taskPosition = taskPosition,
         content = footerContent,
         buttonActionStates = taskActionButtonsStates,
-        onButtonClicked = { onAction(TaskScreenAction.OnButtonClicked(it)) },
+        onButtonClicked = onButtonClicked,
       )
     },
     content = { taskBody() },
   )
 
   if (shouldShowLoiNameDialog) {
-    LoiNameDialog(
-      textFieldValue = loiName,
-      onConfirmRequest = { onAction(TaskScreenAction.OnLoiNameConfirm(loiName)) },
-      onDismissRequest = { onAction(TaskScreenAction.OnLoiNameDismiss) },
-      onTextFieldChange = { onAction(TaskScreenAction.OnLoiNameChanged(it)) },
-    )
+    LoiNameDialog(textFieldValue = loiName, onLoiNameAction = onLoiNameAction)
   }
 
   instructionData
     ?.takeIf { showInstructionsDialog }
-    ?.let {
-      InstructionsDialog(
-        data = it,
-        onDismissed = { onAction(TaskScreenAction.OnInstructionsDismiss) },
-      )
-    }
+    ?.let { InstructionsDialog(data = it, onDismissed = onInstructionsDismiss) }
 }

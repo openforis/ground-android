@@ -20,5 +20,13 @@
 
   <string name="app_name" translatable="false">Ground</string>
   <string name="ground_website" translatable="false">https://openforis.org/ground/</string>
-
+  <string name="deeplink_host" translatable="false">ground.openforis.org</string>
+  <string name="survey_deeplink_path" translatable="false">/android/survey/</string>
+  <string name="lang_english" translatable="false">English</string>
+  <string name="lang_french" translatable="false">Français</string>
+  <string name="lang_spanish" translatable="false">Español</string>
+  <string name="lang_lao" translatable="false">ພາສາລາວ</string>
+  <string name="lang_portuguese" translatable="false">Português</string>
+  <string name="lang_thai" translatable="false">ไทย</string>
+  <string name="lang_vietnamese" translatable="false">Tiếng Việt</string>
 </resources>

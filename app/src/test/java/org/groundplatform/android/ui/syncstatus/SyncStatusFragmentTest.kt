@@ -30,18 +30,17 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import org.groundplatform.android.BaseHiltTest
 import org.groundplatform.android.FakeData.SURVEY
 import org.groundplatform.android.FakeData.USER
-import org.groundplatform.android.FakeData.newLoiMutation
-import org.groundplatform.android.FakeData.newSubmissionMutation
 import org.groundplatform.android.R
 import org.groundplatform.android.data.local.stores.LocalLocationOfInterestStore
 import org.groundplatform.android.data.local.stores.LocalSubmissionStore
 import org.groundplatform.android.data.local.stores.LocalSurveyStore
 import org.groundplatform.android.data.local.stores.LocalUserStore
 import org.groundplatform.android.data.remote.FakeRemoteDataStore
-import org.groundplatform.android.repository.SurveyRepository
 import org.groundplatform.android.testrules.FragmentScenarioRule
 import org.groundplatform.domain.model.geometry.Coordinates
 import org.groundplatform.domain.model.geometry.Point
+import org.groundplatform.domain.repository.SurveyRepositoryInterface
+import org.groundplatform.testing.FakeDataGenerator
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -59,7 +58,7 @@ class SyncStatusFragmentTest : BaseHiltTest() {
   @Inject lateinit var localSubmissionStore: LocalSubmissionStore
   @Inject lateinit var localSurveyStore: LocalSurveyStore
   @Inject lateinit var localUserStore: LocalUserStore
-  @Inject lateinit var surveyRepository: SurveyRepository
+  @Inject lateinit var surveyRepository: SurveyRepositoryInterface
 
   @Test
   fun `Toolbar should be displayed`() {
@@ -82,7 +81,9 @@ class SyncStatusFragmentTest : BaseHiltTest() {
 
     // Insert a new LOI mutation in local db
     localUserStore.insertOrUpdateUser(USER)
-    localLoiStore.applyAndEnqueue(newLoiMutation(point = Point(Coordinates(0.0, 0.0))))
+    localLoiStore.applyAndEnqueue(
+      FakeDataGenerator.newLoiMutation(geometry = Point(Coordinates(0.0, 0.0)))
+    )
     advanceUntilIdle()
 
     setupFragment()
@@ -99,8 +100,8 @@ class SyncStatusFragmentTest : BaseHiltTest() {
 
     // Insert a new submission mutation in local db
     localUserStore.insertOrUpdateUser(USER)
-    localLoiStore.apply(newLoiMutation(point = Point(Coordinates(0.0, 0.0))))
-    localSubmissionStore.applyAndEnqueue(newSubmissionMutation())
+    localLoiStore.apply(FakeDataGenerator.newLoiMutation(geometry = Point(Coordinates(0.0, 0.0))))
+    localSubmissionStore.applyAndEnqueue(FakeDataGenerator.newSubmissionMutation())
     advanceUntilIdle()
 
     setupFragment()

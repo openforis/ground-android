@@ -24,17 +24,19 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
-import kotlin.test.Test
+import ground_android.core.ui.generated.resources.Res
+import ground_android.core.ui.generated.resources.share
 import kotlin.test.assertTrue
 import org.groundplatform.android.FakeData.ADHOC_JOB
 import org.groundplatform.android.FakeData.JOB
 import org.groundplatform.android.FakeData.LOCATION_OF_INTEREST
 import org.groundplatform.android.FakeData.LOCATION_OF_INTEREST_LOI_REPORT
-import org.groundplatform.android.FakeData.newTask
 import org.groundplatform.android.R
 import org.groundplatform.android.getString
+import org.groundplatform.testing.FakeDataGenerator.newTask
 import org.groundplatform.ui.components.qrcode.TEST_TAG_GROUND_QR_CODE
 import org.junit.Rule
+import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
@@ -239,7 +241,7 @@ class JobMapComponentTest {
       JobMapComponent(state = JobMapComponentState.LoiSelected(loiSheetData), onAction = {})
     }
 
-    composeTestRule.onNodeWithText(getString(R.string.share)).performClick()
+    composeTestRule.onNodeWithText(getString(Res.string.share)).performClick()
 
     composeTestRule.onNodeWithText(getString(R.string.share_location)).assertIsDisplayed()
     composeTestRule.onNodeWithTag(TEST_TAG_GROUND_QR_CODE).assertIsDisplayed()
@@ -259,7 +261,7 @@ class JobMapComponentTest {
       JobMapComponent(state = JobMapComponentState.LoiSelected(loiSheetData), onAction = {})
     }
 
-    composeTestRule.onNodeWithText(getString(R.string.share)).performClick()
+    composeTestRule.onNodeWithText(getString(Res.string.share)).performClick()
     composeTestRule.onNodeWithText(getString(R.string.close)).performScrollTo().performClick()
     composeTestRule.waitForIdle()
 

@@ -26,10 +26,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.groundplatform.android.R
 import org.groundplatform.android.ui.common.ExcludeFromJacocoGeneratedReport
+import org.groundplatform.android.ui.datacollection.TaskPosition
+import org.groundplatform.android.ui.datacollection.components.ButtonAction
 import org.groundplatform.android.ui.datacollection.components.TaskHeader
 import org.groundplatform.android.ui.datacollection.components.TextTaskInput
 import org.groundplatform.android.ui.datacollection.tasks.TaskScreen
-import org.groundplatform.android.ui.datacollection.tasks.TaskScreenAction
 import org.groundplatform.domain.model.submission.TextTaskData.Companion.fromString
 import org.groundplatform.ui.theme.AppTheme
 import org.groundplatform.ui.theme.sizes
@@ -39,8 +40,8 @@ const val INPUT_TEXT_TEST_TAG: String = "text task input test tag"
 @Composable
 fun TextTaskScreen(
   viewModel: TextTaskViewModel,
-  onFooterPositionUpdated: (Float) -> Unit,
-  onAction: (TaskScreenAction) -> Unit,
+  taskPosition: TaskPosition? = null,
+  onButtonClicked: (ButtonAction) -> Unit,
 ) {
   val taskActionButtonsStates by viewModel.taskActionButtonStates.collectAsStateWithLifecycle()
   val responseText by viewModel.responseText.observeAsState("")
@@ -48,9 +49,9 @@ fun TextTaskScreen(
   TaskScreen(
     taskHeader =
       TaskHeader(label = viewModel.task.label, iconResId = R.drawable.ic_question_answer),
+    taskPosition = taskPosition,
     taskActionButtonsStates = taskActionButtonsStates,
-    onFooterPositionUpdated = onFooterPositionUpdated,
-    onAction = onAction,
+    onButtonClicked = onButtonClicked,
     taskBody = {
       TextTaskContent(
         responseText = responseText,

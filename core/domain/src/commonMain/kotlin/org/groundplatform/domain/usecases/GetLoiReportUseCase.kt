@@ -15,11 +15,13 @@
  */
 package org.groundplatform.domain.usecases
 
+import kotlin.math.absoluteValue
 import kotlin.math.round
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.JsonUnquotedLiteral
 import org.groundplatform.domain.model.geometry.Coordinates
 import org.groundplatform.domain.model.geometry.Geometry
 import org.groundplatform.domain.model.geometry.LineString
@@ -31,6 +33,8 @@ import org.groundplatform.domain.model.locationofinterest.LOI_NAME_PROPERTY
 import org.groundplatform.domain.model.locationofinterest.LoiProperties
 import org.groundplatform.domain.model.locationofinterest.LoiReport
 import org.groundplatform.domain.repository.LocationOfInterestRepositoryInterface
+import org.groundplatform.domain.repository.SurveyRepositoryInterface
+import org.groundplatform.domain.repository.UserRepositoryInterface
 
 /**
  * Use case that generates a [LoiReport] containing the LOI geometry and properties as a GeoJSON.
@@ -38,7 +42,9 @@ import org.groundplatform.domain.repository.LocationOfInterestRepositoryInterfac
  * Supported geometry types: [Point], [LineString], [Polygon], [MultiPolygon].
  */
 class GetLoiReportUseCase(
-  private val locationOfInterestRepository: LocationOfInterestRepositoryInterface
+  private val locationOfInterestRepository: LocationOfInterestRepositoryInterface,
+  private val userRepositoryInterface: UserRepositoryInterface,
+  private val surveyRepositoryInterface: SurveyRepositoryInterface,
 ) {
   /**
    * Returns a [LoiReport] for the given LOI, or `null` if it does not exist.
@@ -49,12 +55,21 @@ class GetLoiReportUseCase(
    */
   suspend operator fun invoke(loiName: String, loiId: String, surveyId: String): LoiReport? {
     val loi = locationOfInterestRepository.getOfflineLoi(surveyId, loiId)
+    val user = userRepositoryInterface.getAuthenticatedUser()
+    val surveyName = surveyRepositoryInterface.getOfflineSurvey(surveyId)?.title.orEmpty()
+    val submissions = null // To be implemented in a follow-up on
+    // https://github.com/google/ground-android/issues/3715
     return loi?.let {
       LoiReport(
-        loiName,
-        it.geometry.toGeoJson(
-          it.properties.filter { property -> property.key == LOI_NAME_PROPERTY }
-        ),
+        surveyName = surveyName,
+        loiName = loiName,
+        userName = user.displayName,
+        dateMillis = it.lastModified.clientTimestamp,
+        geoJson =
+          it.geometry.toGeoJson(
+            it.properties.filter { property -> property.key == LOI_NAME_PROPERTY }
+          ),
+        submissions = submissions,
       )
     }
   }
@@ -98,12 +113,7 @@ class GetLoiReportUseCase(
 
   /** Converts a single [Coordinates] to a GeoJSON position: [lng, lat]. */
   private fun coordinatesToPosition(coordinates: Coordinates): JsonArray =
-    JsonArray(
-      listOf(
-        JsonPrimitive(coordinates.lng.roundTo6Decimals()),
-        JsonPrimitive(coordinates.lat.roundTo6Decimals()),
-      )
-    )
+    JsonArray(listOf(coordinates.lng.roundTo6Decimals(), coordinates.lat.roundTo6Decimals()))
 
   /** Converts a list of [Coordinates] to a GeoJSON array of positions. */
   private fun coordinatesToPositions(coordinates: List<Coordinates>): JsonArray =
@@ -116,7 +126,15 @@ class GetLoiReportUseCase(
     return JsonArray(rings)
   }
 
-  private fun Double.roundTo6Decimals(): Double = round(this * 1e6) / 1e6
+  /** Renders this [Double] as a JSON number with exactly 6 decimal digits. */
+  private fun Double.roundTo6Decimals(): JsonPrimitive {
+    val scaled = round(this * DECIMAL_SCALE).toLong()
+    val sign = if (scaled < 0) "-" else ""
+    val absScaled = scaled.absoluteValue
+    val intPart = absScaled / DECIMAL_SCALE
+    val fracPart = (absScaled % DECIMAL_SCALE).toString().padStart(DECIMAL_DIGITS, '0')
+    return JsonUnquotedLiteral("$sign$intPart.$fracPart")
+  }
 
   private companion object {
     const val KEY_TYPE = "type"
@@ -128,5 +146,7 @@ class GetLoiReportUseCase(
     const val TYPE_LINE_STRING = "LineString"
     const val TYPE_POLYGON = "Polygon"
     const val TYPE_MULTI_POLYGON = "MultiPolygon"
+    const val DECIMAL_DIGITS = 6
+    const val DECIMAL_SCALE = 1_000_000L
   }
 }

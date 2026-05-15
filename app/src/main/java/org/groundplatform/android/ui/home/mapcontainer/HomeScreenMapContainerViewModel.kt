@@ -39,10 +39,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.groundplatform.android.common.Constants.CLUSTERING_ZOOM_THRESHOLD
 import org.groundplatform.android.data.local.LocalValueStore
-import org.groundplatform.android.repository.MapStateRepository
-import org.groundplatform.android.repository.OfflineAreaRepository
-import org.groundplatform.android.repository.SubmissionRepository
-import org.groundplatform.android.repository.SurveyRepository
 import org.groundplatform.android.system.LocationManager
 import org.groundplatform.android.system.PermissionsManager
 import org.groundplatform.android.system.SettingsManager
@@ -60,6 +56,10 @@ import org.groundplatform.domain.model.Survey
 import org.groundplatform.domain.model.job.Job
 import org.groundplatform.domain.model.locationofinterest.LocationOfInterest
 import org.groundplatform.domain.repository.LocationOfInterestRepositoryInterface
+import org.groundplatform.domain.repository.MapStateRepositoryInterface
+import org.groundplatform.domain.repository.OfflineAreaRepositoryInterface
+import org.groundplatform.domain.repository.SubmissionRepositoryInterface
+import org.groundplatform.domain.repository.SurveyRepositoryInterface
 import org.groundplatform.domain.repository.UserRepositoryInterface
 import org.groundplatform.domain.usecases.GetLoiReportUseCase
 
@@ -70,13 +70,13 @@ class HomeScreenMapContainerViewModel
 internal constructor(
   private val getDataSharingTermsUseCase: GetDataSharingTermsUseCase,
   private val loiRepository: LocationOfInterestRepositoryInterface,
-  private val mapStateRepository: MapStateRepository,
-  private val submissionRepository: SubmissionRepository,
+  private val mapStateRepository: MapStateRepositoryInterface,
+  private val submissionRepository: SubmissionRepositoryInterface,
   locationManager: LocationManager,
   settingsManager: SettingsManager,
-  offlineAreaRepository: OfflineAreaRepository,
+  offlineAreaRepository: OfflineAreaRepositoryInterface,
   permissionsManager: PermissionsManager,
-  private val surveyRepository: SurveyRepository,
+  private val surveyRepository: SurveyRepositoryInterface,
   private val userRepository: UserRepositoryInterface,
   private val localValueStore: LocalValueStore,
   private val locationOfInterestHelper: LocationOfInterestHelper,

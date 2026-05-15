@@ -33,12 +33,12 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import org.groundplatform.android.R
-import org.groundplatform.android.model.SurveyListItem
 import org.groundplatform.domain.model.Survey
+import org.groundplatform.domain.model.SurveyListItem
 import timber.log.Timber
 
 @Composable
-fun HeaderRow(item: SurveyListItem, menuClick: (String) -> Unit) {
+fun HeaderRow(item: SurveyListItem, menuClick: ((String) -> Unit)? = null) {
   val iconRes = item.generalAccess.iconRes() ?: return
   val labelRes = item.generalAccess.labelString() ?: return
 
@@ -65,15 +65,17 @@ fun HeaderRow(item: SurveyListItem, menuClick: (String) -> Unit) {
         tint = Color(0xff006E2C),
         modifier = Modifier.size(24.dp).padding(end = 4.dp),
       )
-      Icon(
-        painter = painterResource(R.drawable.ic_more_vert),
-        contentDescription = stringResource(R.string.more_options_icon_description),
-        modifier =
-          Modifier.size(24.dp)
-            .clickable { menuClick(item.id) }
-            .padding(end = 4.dp)
-            .testTag("overflow_${item.id}"),
-      )
+      menuClick?.let {
+        Icon(
+          painter = painterResource(R.drawable.ic_more_vert),
+          contentDescription = stringResource(R.string.more_options_icon_description),
+          modifier =
+            Modifier.size(24.dp)
+              .clickable { menuClick(item.id) }
+              .padding(end = 4.dp)
+              .testTag("overflow_${item.id}"),
+        )
+      }
     }
   }
 }

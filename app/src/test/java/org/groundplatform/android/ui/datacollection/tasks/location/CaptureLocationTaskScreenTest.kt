@@ -24,7 +24,6 @@ import androidx.compose.ui.test.performClick
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.groundplatform.android.FakeData.JOB
-import org.groundplatform.android.FakeData.newTask
 import org.groundplatform.android.R
 import org.groundplatform.android.getString
 import org.groundplatform.android.ui.datacollection.components.ButtonAction
@@ -32,12 +31,12 @@ import org.groundplatform.android.ui.datacollection.components.ButtonActionState
 import org.groundplatform.android.ui.datacollection.tasks.ButtonActionStateChecker
 import org.groundplatform.android.ui.datacollection.tasks.LocationLockEnabledState
 import org.groundplatform.android.ui.datacollection.tasks.TaskPositionInterface
-import org.groundplatform.android.ui.datacollection.tasks.TaskScreenAction
 import org.groundplatform.domain.model.geometry.Coordinates
 import org.groundplatform.domain.model.geometry.Point
 import org.groundplatform.domain.model.submission.CaptureLocationTaskData
 import org.groundplatform.domain.model.submission.TaskData
 import org.groundplatform.domain.model.task.Task
+import org.groundplatform.testing.FakeDataGenerator.newTask
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -50,7 +49,7 @@ class CaptureLocationTaskScreenTest {
 
   @get:Rule val composeTestRule = createComposeRule()
 
-  private var lastScreenAction: TaskScreenAction? = null
+  private var lastScreenAction: ButtonAction? = null
   private var openSettingsCalled = false
   private lateinit var viewModel: CaptureLocationTaskViewModel
   private lateinit var buttonActionStateChecker: ButtonActionStateChecker
@@ -234,6 +233,7 @@ class CaptureLocationTaskScreenTest {
       taskData = null,
       taskPositionInterface = createTaskPositionInterface(isFirst, isLastWithValue),
       surveyId = "survey_id",
+      eventReporter = {},
     )
 
     if (location != null) {
@@ -243,12 +243,9 @@ class CaptureLocationTaskScreenTest {
     composeTestRule.setContent {
       CaptureLocationTaskScreen(
         viewModel = viewModel,
-        onFooterPositionUpdated = {},
-        onAction = { action ->
+        onButtonClicked = { action ->
           lastScreenAction = action
-          if (action is TaskScreenAction.OnButtonClicked) {
-            viewModel.onButtonClick(action.action)
-          }
+          viewModel.onButtonClick(action)
         },
         onOpenSettings = { openSettingsCalled = true },
         mapContent = { /* Dummy content */ },

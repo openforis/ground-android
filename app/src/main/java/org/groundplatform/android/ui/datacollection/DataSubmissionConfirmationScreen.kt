@@ -16,8 +16,8 @@
 package org.groundplatform.android.ui.datacollection
 
 import android.content.res.Configuration
+import android.text.format.DateFormat
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -27,7 +27,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -42,38 +42,39 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import java.util.Date
+import kotlin.time.Clock
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import org.groundplatform.android.R
 import org.groundplatform.android.ui.common.ExcludeFromJacocoGeneratedReport
 import org.groundplatform.domain.model.locationofinterest.LoiReport
+import org.groundplatform.ui.components.loireport.SubmissionPdfItem
 import org.groundplatform.ui.components.qrcode.GroundQrCode
 import org.groundplatform.ui.theme.AppTheme
 
-private val DEFAULT_TOOLBAR_HEIGHT = 56.dp
-
 @Composable
-fun DataSubmissionConfirmationScreen(loiReport: LoiReport? = null, onDismissed: () -> Unit) {
+fun DataSubmissionConfirmationScreen(
+  modifier: Modifier = Modifier,
+  loiReport: LoiReport? = null,
+  onDismissed: () -> Unit,
+) {
   val baseModifier =
-    Modifier.fillMaxSize()
+    modifier
+      .fillMaxSize()
       .background(MaterialTheme.colorScheme.surface)
-      .padding(top = DEFAULT_TOOLBAR_HEIGHT)
-      .systemBarsPadding()
       .verticalScroll(rememberScrollState())
       .padding(horizontal = 48.dp)
   if (LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE) {
-    Row(
-      modifier = baseModifier,
-      horizontalArrangement = Arrangement.SpaceEvenly,
-      verticalAlignment = Alignment.CenterVertically,
-    ) {
+    Row(modifier = baseModifier.padding(vertical = 16.dp), verticalAlignment = Alignment.Top) {
       Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
         HeaderContent()
         OutlinedButton(modifier = Modifier.padding(top = 24.dp), onClick = { onDismissed() }) {
@@ -84,6 +85,7 @@ fun DataSubmissionConfirmationScreen(loiReport: LoiReport? = null, onDismissed: 
           )
         }
       }
+      Spacer(modifier = Modifier.width(16.dp))
       ShareableContent(modifier = Modifier.weight(1f), loiReport = loiReport)
     }
   } else {
@@ -133,6 +135,8 @@ private fun HeaderContent(modifier: Modifier = Modifier) {
 
 @Composable
 private fun ShareableContent(modifier: Modifier = Modifier, loiReport: LoiReport?) {
+  val context = LocalContext.current
+
   loiReport?.let {
     Column(modifier) {
       Text(
@@ -156,12 +160,31 @@ private fun ShareableContent(modifier: Modifier = Modifier, loiReport: LoiReport
           centerLogoPainter = painterResource(R.drawable.ground_logo),
         )
       }
+
+      loiReport.submissions?.let {
+        SubmissionPdfItem(
+          modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+          title = loiReport.surveyName,
+          loiName = loiReport.loiName,
+          userName = loiReport.userName,
+          date = DateFormat.getDateFormat(context).format(Date(loiReport.dateMillis)),
+          onItemClick = {
+            /* To be implemented in a follow-up on https://github.com/google/ground-android/issues/3715 */
+          },
+          onShareClick = {
+            /* To be implemented in a follow-up on https://github.com/google/ground-android/issues/3715 */
+          },
+        )
+      }
     }
   }
 }
 
 private val testLoiReport =
   LoiReport(
+    surveyName = "Test Survey",
+    userName = "John Doe",
+    dateMillis = Clock.System.now().toEpochMilliseconds(),
     loiName = "Test LOI",
     geoJson =
       JsonObject(
@@ -177,6 +200,7 @@ private val testLoiReport =
             ),
         )
       ),
+    submissions = emptyList(),
   )
 
 @Composable

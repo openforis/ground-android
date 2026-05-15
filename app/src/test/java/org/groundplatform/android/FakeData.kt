@@ -15,12 +15,11 @@
  */
 package org.groundplatform.android
 
-import kotlin.time.Clock
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.JsonUnquotedLiteral
 import kotlinx.serialization.json.buildJsonObject
-import org.groundplatform.android.model.imagery.OfflineArea
 import org.groundplatform.android.ui.map.Feature
 import org.groundplatform.android.ui.map.gms.features.FeatureClusterItem
 import org.groundplatform.domain.model.Survey
@@ -31,19 +30,15 @@ import org.groundplatform.domain.model.geometry.LinearRing
 import org.groundplatform.domain.model.geometry.MultiPolygon
 import org.groundplatform.domain.model.geometry.Point
 import org.groundplatform.domain.model.geometry.Polygon
+import org.groundplatform.domain.model.imagery.OfflineArea
 import org.groundplatform.domain.model.job.Job
 import org.groundplatform.domain.model.job.Style
 import org.groundplatform.domain.model.locationofinterest.AuditInfo
-import org.groundplatform.domain.model.locationofinterest.LOI_NAME_PROPERTY
 import org.groundplatform.domain.model.locationofinterest.LocationOfInterest
 import org.groundplatform.domain.model.locationofinterest.LoiReport
 import org.groundplatform.domain.model.map.Bounds
-import org.groundplatform.domain.model.mutation.LocationOfInterestMutation
-import org.groundplatform.domain.model.mutation.Mutation
-import org.groundplatform.domain.model.mutation.SubmissionMutation
-import org.groundplatform.domain.model.task.Condition
-import org.groundplatform.domain.model.task.MultipleChoice
 import org.groundplatform.domain.model.task.Task
+import org.groundplatform.testing.FakeDataGenerator.newTask
 
 /**
  * Shared test data constants. Tests are expected to override existing or set missing values when
@@ -116,7 +111,10 @@ object FakeData {
 
   val LOCATION_OF_INTEREST_LOI_REPORT =
     LoiReport(
+      surveyName = SURVEY.title,
       loiName = "Unnamed point",
+      userName = USER.displayName,
+      dateMillis = LOCATION_OF_INTEREST.lastModified.clientTimestamp,
       geoJson =
         JsonObject(
           mapOf(
@@ -126,11 +124,15 @@ object FakeData {
               JsonObject(
                 mapOf(
                   "type" to JsonPrimitive("Point"),
-                  "coordinates" to JsonArray(listOf(JsonPrimitive(0.0), JsonPrimitive(0.0))),
+                  "coordinates" to
+                    JsonArray(
+                      listOf(JsonUnquotedLiteral("0.000000"), JsonUnquotedLiteral("0.000000"))
+                    ),
                 )
               ),
           )
         ),
+      submissions = null,
     )
   val LOCATION_OF_INTEREST_FEATURE =
     Feature(
@@ -176,73 +178,4 @@ object FakeData {
 
   val OFFLINE_AREA =
     OfflineArea("id_1", OfflineArea.State.PENDING, Bounds(0.0, 0.0, 0.0, 0.0), "Test Area", 0..14)
-
-  fun newTask(
-    id: String = "taskId",
-    type: Task.Type = Task.Type.TEXT,
-    multipleChoice: MultipleChoice? = null,
-    isAddLoiTask: Boolean = false,
-    condition: Condition? = null,
-    isRequired: Boolean = false,
-  ): Task =
-    Task(
-      id = id,
-      index = 0,
-      type = type,
-      label = "",
-      isRequired = isRequired,
-      multipleChoice = multipleChoice,
-      isAddLoiTask = isAddLoiTask,
-      condition = condition,
-    )
-
-  fun newLoiMutation(
-    point: Point,
-    mutationType: Mutation.Type = Mutation.Type.CREATE,
-    syncStatus: Mutation.SyncStatus = Mutation.SyncStatus.PENDING,
-  ): LocationOfInterestMutation =
-    LocationOfInterestMutation(
-      jobId = JOB_ID,
-      geometry = point,
-      id = 1L,
-      locationOfInterestId = LOI_ID,
-      type = mutationType,
-      syncStatus = syncStatus,
-      userId = USER_ID,
-      surveyId = SURVEY_ID,
-      clientTimestamp = Clock.System.now().toEpochMilliseconds(),
-      properties = mapOf(LOI_NAME_PROPERTY to LOCATION_OF_INTEREST_NAME),
-      collectionId = "",
-    )
-
-  fun newAoiMutation(
-    polygonVertices: List<Coordinates>,
-    mutationType: Mutation.Type = Mutation.Type.CREATE,
-    syncStatus: Mutation.SyncStatus = Mutation.SyncStatus.PENDING,
-  ): LocationOfInterestMutation =
-    LocationOfInterestMutation(
-      jobId = JOB_ID,
-      geometry = Polygon(LinearRing(polygonVertices)),
-      id = 1L,
-      locationOfInterestId = LOI_ID,
-      type = mutationType,
-      syncStatus = syncStatus,
-      userId = USER_ID,
-      surveyId = SURVEY_ID,
-      clientTimestamp = Clock.System.now().toEpochMilliseconds(),
-      properties = mapOf(LOI_NAME_PROPERTY to LOCATION_OF_INTEREST_NAME),
-      collectionId = "",
-    )
-
-  fun newSubmissionMutation(): SubmissionMutation =
-    SubmissionMutation(
-      type = Mutation.Type.CREATE,
-      syncStatus = Mutation.SyncStatus.PENDING,
-      surveyId = SURVEY_ID,
-      locationOfInterestId = LOI_ID,
-      userId = USER_ID,
-      collectionId = "",
-      job = JOB,
-      submissionId = SUBMISSION_ID,
-    )
 }

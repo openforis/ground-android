@@ -29,13 +29,13 @@ kotlin {
   jvm()
   jvmToolchain(libs.versions.jvmToolchainVersion.get().toInt())
 
-  iosX64()
   iosArm64()
   iosSimulatorArm64()
 
   sourceSets {
     commonMain {
       dependencies {
+        implementation(libs.kermit)
         implementation(libs.kotlin.stdlib)
         implementation(libs.kotlinx.serialization.json)
         implementation(libs.kotlinx.collections.immutable)
@@ -45,6 +45,7 @@ kotlin {
 
     commonTest {
       dependencies {
+        implementation(project(":core:testing"))
         implementation(libs.kotlin.test)
         implementation(libs.kotlinx.coroutines.test)
       }

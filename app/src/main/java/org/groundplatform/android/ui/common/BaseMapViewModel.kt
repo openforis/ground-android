@@ -45,12 +45,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.withIndex
 import kotlinx.coroutines.launch
 import org.groundplatform.android.common.Constants.DEFAULT_LOI_ZOOM_LEVEL
-import org.groundplatform.android.model.imagery.TileSource
-import org.groundplatform.android.model.map.CameraPosition
-import org.groundplatform.android.model.map.MapType
-import org.groundplatform.android.repository.MapStateRepository
-import org.groundplatform.android.repository.OfflineAreaRepository
-import org.groundplatform.android.repository.SurveyRepository
 import org.groundplatform.android.system.FINE_LOCATION_UPDATES_REQUEST
 import org.groundplatform.android.system.LocationManager
 import org.groundplatform.android.system.PermissionsManager
@@ -64,18 +58,24 @@ import org.groundplatform.android.ui.map.gms.GmsExt.toBounds
 import org.groundplatform.android.ui.map.gms.toCoordinates
 import org.groundplatform.domain.model.Survey
 import org.groundplatform.domain.model.geometry.Coordinates
+import org.groundplatform.domain.model.imagery.TileSource
+import org.groundplatform.domain.model.map.CameraPosition
+import org.groundplatform.domain.model.map.MapType
 import org.groundplatform.domain.repository.LocationOfInterestRepositoryInterface
+import org.groundplatform.domain.repository.MapStateRepositoryInterface
+import org.groundplatform.domain.repository.OfflineAreaRepositoryInterface
+import org.groundplatform.domain.repository.SurveyRepositoryInterface
 import timber.log.Timber
 
 open class BaseMapViewModel
 @Inject
 constructor(
   private val locationManager: LocationManager,
-  private val mapStateRepository: MapStateRepository,
+  private val mapStateRepository: MapStateRepositoryInterface,
   private val settingsManager: SettingsManager,
-  private val offlineAreaRepository: OfflineAreaRepository,
+  private val offlineAreaRepository: OfflineAreaRepositoryInterface,
   private val permissionsManager: PermissionsManager,
-  private val surveyRepository: SurveyRepository,
+  private val surveyRepository: SurveyRepositoryInterface,
   private val locationOfInterestRepository: LocationOfInterestRepositoryInterface,
 ) : AbstractViewModel() {
 
@@ -254,14 +254,13 @@ constructor(
     // Attempt to fetch last saved position from local storage.
     val savedPosition = mapStateRepository.getCameraPosition(survey.id)
     if (savedPosition != null) {
-      return if (savedPosition.zoomLevel == null) {
-        NewCameraPositionViaCoordinates(savedPosition.coordinates)
-      } else
+      return savedPosition.zoomLevel?.let {
         NewCameraPositionViaCoordinatesAndZoomLevel(
           savedPosition.coordinates,
-          savedPosition.zoomLevel,
+          zoomLevel = it,
           isAllowZoomOut = true,
         )
+      } ?: NewCameraPositionViaCoordinates(savedPosition.coordinates)
     }
 
     // Compute the default viewport which includes all LOIs in the given survey.

@@ -27,19 +27,15 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.fragment.hiltNavGraphViewModels
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.asFlow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import java.math.RoundingMode
-import java.text.DecimalFormat
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import org.groundplatform.android.R
 import org.groundplatform.android.common.Constants.ACCURACY_THRESHOLD_IN_M
 import org.groundplatform.android.databinding.MapTaskFragBinding
-import org.groundplatform.android.model.map.CameraPosition
 import org.groundplatform.android.ui.common.AbstractMapContainerFragment
 import org.groundplatform.android.ui.common.BaseMapViewModel
 import org.groundplatform.android.ui.components.MapFloatingActionButton
@@ -52,7 +48,10 @@ import org.groundplatform.android.ui.map.gms.getAccuracyOrNull
 import org.groundplatform.android.ui.map.gms.toCoordinates
 import org.groundplatform.android.util.setComposableContent
 import org.groundplatform.android.util.toDmsFormat
+import org.groundplatform.domain.model.map.CameraPosition
 import org.jetbrains.annotations.MustBeInvokedByOverriders
+import java.math.RoundingMode
+import java.text.DecimalFormat
 
 abstract class AbstractTaskMapFragment<TVM : AbstractTaskViewModel> :
   AbstractMapContainerFragment() {
@@ -72,7 +71,7 @@ abstract class AbstractTaskMapFragment<TVM : AbstractTaskViewModel> :
   private lateinit var viewModel: BaseMapViewModel
 
   protected val taskId: String by lazy {
-    arguments?.getString(TASK_ID_FRAGMENT_ARG_KEY) ?: error("null taskId fragment arg")
+    arguments?.getString(DataCollectionTaskFragment.TASK_ID) ?: error("null taskId fragment arg")
   }
 
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -151,14 +150,14 @@ abstract class AbstractTaskMapFragment<TVM : AbstractTaskViewModel> :
   override fun onMapReady(map: MapFragment) {
     launchWhenTaskVisible(dataCollectionViewModel, taskId) {
       launch { getMapViewModel().getCurrentCameraPosition().collect { onMapCameraMoved(it) } }
-      launch { renderFeatures().asFlow().collect { map.setFeatures(it) } }
+      launch { renderFeatures().collect { map.setFeatures(it) } }
       // Allow the fragment to restore map viewport to previously drawn feature.
       setDefaultViewPort()
     }
   }
 
   /** Must be overridden by subclasses. */
-  open fun renderFeatures(): LiveData<Set<Feature>> = MutableLiveData(setOf())
+  open fun renderFeatures(): Flow<Set<Feature>> = flowOf(setOf())
 
   /**
    * This should be overridden if the fragment wants to set a custom map camera position. Default
@@ -208,9 +207,5 @@ abstract class AbstractTaskMapFragment<TVM : AbstractTaskViewModel> :
       return
     }
     updateLocationInfoCard(R.string.map_location, position.coordinates.toDmsFormat())
-  }
-
-  companion object {
-    const val TASK_ID_FRAGMENT_ARG_KEY = "taskId"
   }
 }

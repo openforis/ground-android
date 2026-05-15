@@ -16,19 +16,18 @@
 
 package org.groundplatform.android.ui.datacollection
 
+import android.content.Context
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.navigation.fragment.findNavController
+import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import dagger.hilt.android.testing.BindValue
 import dagger.hilt.android.testing.HiltAndroidTest
-import javax.inject.Inject
-import kotlin.time.Clock
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.advanceUntilIdle
 import org.groundplatform.android.BaseHiltTest
 import org.groundplatform.android.FakeData
@@ -40,14 +39,14 @@ import org.groundplatform.android.data.local.room.converter.SubmissionDeltasConv
 import org.groundplatform.android.data.remote.FakeRemoteDataStore
 import org.groundplatform.android.data.sync.MutationSyncWorkManager
 import org.groundplatform.android.getString
-import org.groundplatform.android.model.map.CameraPosition
-import org.groundplatform.android.repository.MutationRepository
-import org.groundplatform.android.repository.SubmissionRepository
 import org.groundplatform.android.testrules.FragmentScenarioRule
 import org.groundplatform.android.ui.datacollection.tasks.point.DropPinTaskViewModel
+import org.groundplatform.android.ui.datacollection.tasks.polygon.DrawAreaTaskViewModel
 import org.groundplatform.android.usecases.survey.ActivateSurveyUseCase
+import org.groundplatform.domain.model.Survey
 import org.groundplatform.domain.model.geometry.Coordinates
 import org.groundplatform.domain.model.geometry.Point
+import org.groundplatform.domain.model.map.CameraPosition
 import org.groundplatform.domain.model.mutation.Mutation
 import org.groundplatform.domain.model.mutation.SubmissionMutation
 import org.groundplatform.domain.model.submission.DraftSubmission
@@ -61,6 +60,8 @@ import org.groundplatform.domain.model.task.MultipleChoice
 import org.groundplatform.domain.model.task.Option
 import org.groundplatform.domain.model.task.Task
 import org.groundplatform.domain.repository.LocationOfInterestRepositoryInterface
+import org.groundplatform.domain.repository.MutationRepositoryInterface
+import org.groundplatform.domain.repository.SubmissionRepositoryInterface
 import org.groundplatform.domain.repository.UserRepositoryInterface
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -69,6 +70,8 @@ import org.junit.runner.RunWith
 import org.mockito.Mock
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.shadows.ShadowToast
+import javax.inject.Inject
+import kotlin.time.Clock
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltAndroidTest
@@ -80,40 +83,65 @@ class DataCollectionFragmentTest : BaseHiltTest() {
   @Inject lateinit var activateSurvey: ActivateSurveyUseCase
   @Inject lateinit var fakeRemoteDataStore: FakeRemoteDataStore
   @Inject lateinit var loiRepository: LocationOfInterestRepositoryInterface
-  @Inject lateinit var mutationRepository: MutationRepository
-  @Inject lateinit var submissionRepository: SubmissionRepository
+  @Inject lateinit var mutationRepository: MutationRepositoryInterface
+  @Inject lateinit var submissionRepository: SubmissionRepositoryInterface
   @Inject lateinit var userRepository: UserRepositoryInterface
 
   @BindValue @Mock lateinit var mutationSyncWorkManager: MutationSyncWorkManager
 
   lateinit var fragment: DataCollectionFragment
 
-  override fun setUp() = runBlocking {
-    super.setUp()
-    setupSubmission()
-  }
-
-  @Test
-  fun `Job and LOI names are displayed correctly`() {
-    setupFragment()
-
-    runner().validateTextIsDisplayed(TASK_1_NAME).validateTextIsDisplayed(requireNotNull(JOB.name))
-  }
-
-  @Test
-  fun `Only job name is displayed when LOI is not provided`() {
-    setupFragmentWithNoLoi()
-
-    runner()
-      .validateTextDoesNotExist("Unnamed point")
-      .validateTextIsDisplayed(requireNotNull(JOB.name))
-  }
-
   @Test
   fun `First task is loaded and is visible`() {
     setupFragment()
 
     runner().validateTextIsDisplayed(TASK_1_NAME).validateTextIsNotDisplayed(TASK_2_NAME)
+  }
+
+  @Test
+  fun `Drop pin instruction dialog is not visible in adjacent tasks`() = runWithTestDispatcher {
+    val tasks =
+      listOf(
+        Task("id_1", 1, Task.Type.TEXT, "task1", true),
+        Task("id_2", 2, Task.Type.DROP_PIN, "task2", true),
+      )
+    setupFragment(tasks = tasks)
+
+    // Robolectric test environment hides the off-screen page and its contents whereas on a real
+    // device, the dialog would have broken out of that hierarchy and been visible.
+    val dropPinTaskViewModel = fragment.viewModel.getTaskViewModel("id_2") as? DropPinTaskViewModel
+    assertThat(dropPinTaskViewModel).isNotNull()
+    assertThat(dropPinTaskViewModel!!.showInstructionsDialog.value).isFalse()
+
+    // Ensure that the dialog is visible on transition to next screen.
+    runner()
+      .inputText("hello")
+      .clickNextButton()
+      .validateTextIsDisplayed("task2")
+      .validateTextIsDisplayed(getString(R.string.drop_a_pin_tooltip_text))
+  }
+
+  @Test
+  fun `Draw area instruction dialog is not visible in adjacent tasks`() = runWithTestDispatcher {
+    val tasks =
+      listOf(
+        Task("id_1", 1, Task.Type.TEXT, "task1", true),
+        Task("id_2", 2, Task.Type.DRAW_AREA, "task2", true),
+      )
+    setupFragment(tasks = tasks)
+
+    // Robolectric test environment hides the off-screen page and its contents whereas on a real
+    // device, the dialog would have broken out of that hierarchy and been visible.
+    val drawAreaViewModel = fragment.viewModel.getTaskViewModel("id_2") as? DrawAreaTaskViewModel
+    assertThat(drawAreaViewModel).isNotNull()
+    assertThat(drawAreaViewModel!!.showInstructionsDialog.value).isFalse()
+
+    // Ensure that the dialog is visible on transition to next screen.
+    runner()
+      .inputText("hello")
+      .clickNextButton()
+      .validateTextIsDisplayed("task2")
+      .validateTextIsDisplayed(getString(R.string.draw_area_task_instruction))
   }
 
   @Test
@@ -311,31 +339,6 @@ class DataCollectionFragmentTest : BaseHiltTest() {
   }
 
   @Test
-  fun `Displays close button on first task`() = runWithTestDispatcher {
-    setupFragment()
-
-    assertThat(getToolbar()?.navigationIcon).isNotNull()
-  }
-
-  @Test
-  fun `Clicking done on final task displays the close button and title`() = runWithTestDispatcher {
-    setupFragment()
-
-    runner()
-      .inputText(TASK_1_RESPONSE)
-      .clickNextButton()
-      .validateTextIsNotDisplayed(TASK_1_NAME)
-      .validateTextIsDisplayed(TASK_2_NAME)
-      .selectOption(TASK_2_OPTION_LABEL)
-      .clickDoneButton() // Click "done" on final task
-
-    advanceUntilIdle()
-
-    assertThat(getToolbar()?.navigationIcon).isNotNull()
-    assertThat(getToolbar()?.title).isEqualTo(getString(R.string.data_collection_complete))
-  }
-
-  @Test
   fun `Back navigation at the end of data collection exits the screen`() = runWithTestDispatcher {
     setupFragment()
 
@@ -388,8 +391,10 @@ class DataCollectionFragmentTest : BaseHiltTest() {
       runner().pressBackButton()
 
       // Assert that confirmation dialog is shown
+      composeTestRule.waitForIdle()
+      val context = ApplicationProvider.getApplicationContext<Context>()
       composeTestRule
-        .onNodeWithText(fragment.getString(R.string.data_collection_cancellation_title))
+        .onNodeWithText(context.getString(R.string.data_collection_cancellation_title))
         .assertIsDisplayed()
 
       // Click confirm button
@@ -466,8 +471,10 @@ class DataCollectionFragmentTest : BaseHiltTest() {
     runner().pressBackButton()
 
     // Assert that confirmation dialog is shown
+    composeTestRule.waitForIdle()
+    val context = ApplicationProvider.getApplicationContext<Context>()
     composeTestRule
-      .onNodeWithText(fragment.getString(R.string.data_collection_cancellation_title))
+      .onNodeWithText(context.getString(R.string.data_collection_cancellation_title))
       .assertIsDisplayed()
 
     // Click cancel button instead of confirm
@@ -490,8 +497,10 @@ class DataCollectionFragmentTest : BaseHiltTest() {
       fragment.onBack()
 
       // Assert that confirmation dialog is shown
+      composeTestRule.waitForIdle()
+      val context = ApplicationProvider.getApplicationContext<Context>()
       composeTestRule
-        .onNodeWithText(fragment.getString(R.string.data_collection_cancellation_title))
+        .onNodeWithText(context.getString(R.string.data_collection_cancellation_title))
         .assertIsDisplayed()
     }
 
@@ -574,23 +583,6 @@ class DataCollectionFragmentTest : BaseHiltTest() {
   }
 
   @Test
-  fun `Progress bar updates correctly when navigating between tasks`() {
-    setupFragment()
-
-    val progressBar = fragment.view?.findViewById<android.widget.ProgressBar>(R.id.progress_bar)!!
-
-    // First task (0/1 progress)
-    assertThat(progressBar.progress).isEqualTo(0)
-    assertThat(progressBar.max).isEqualTo(100) // (2-1) * 100
-
-    runner().inputText(TASK_1_RESPONSE).clickNextButton()
-    composeTestRule.waitForIdle()
-
-    // Second task (1/1 progress = 100)
-    assertThat(progressBar.progress).isEqualTo(100)
-  }
-
-  @Test
   fun `Loading tasks from draft with invalid data handles gracefully`() = runWithTestDispatcher {
     setupFragment(shouldLoadFromDraft = true, draftValues = "invalid-json-data")
 
@@ -613,7 +605,7 @@ class DataCollectionFragmentTest : BaseHiltTest() {
   }
 
   @Test
-  fun `LOI name dialog validation prevents saving with empty name`() {
+  fun `LOI name dialog validation prevents saving with empty or blank name`() {
     setupFragmentWithNoLoi()
 
     runner()
@@ -621,6 +613,9 @@ class DataCollectionFragmentTest : BaseHiltTest() {
       .clickNextButton()
       .assertLoiNameDialogIsDisplayed()
       .assertButtonIsDisabled("Save")
+
+    // Input blank name
+    runner().inputLoiName("   ").assertButtonIsDisabled("Save")
 
     // Input valid name
     runner().inputLoiName("Valid Name").assertButtonIsEnabled("Save")
@@ -641,8 +636,10 @@ class DataCollectionFragmentTest : BaseHiltTest() {
       .validateTextIsDisplayed(TASK_0_NAME)
       .pressBackButton() // Should show confirmation dialog on first task
 
+    composeTestRule.waitForIdle()
+    val context = ApplicationProvider.getApplicationContext<Context>()
     composeTestRule
-      .onNodeWithText(fragment.getString(R.string.data_collection_cancellation_title))
+      .onNodeWithText(context.getString(R.string.data_collection_cancellation_title))
       .assertIsDisplayed()
   }
 
@@ -803,11 +800,12 @@ class DataCollectionFragmentTest : BaseHiltTest() {
     assertThat(submissionRepository.countDraftSubmissions()).isEqualTo(0)
   }
 
-  private fun setupSubmission() = runWithTestDispatcher {
+  private fun setupSubmission(tasks: List<Task>) = runWithTestDispatcher {
+    val survey = surveyWithTasks(tasks)
     userRepository.saveUserDetails(USER)
-    fakeRemoteDataStore.surveys = listOf(SURVEY)
+    fakeRemoteDataStore.surveys = listOf(survey)
     fakeRemoteDataStore.predefinedLois = listOf(LOCATION_OF_INTEREST)
-    activateSurvey(SURVEY.id)
+    activateSurvey(survey.id)
     advanceUntilIdle()
   }
 
@@ -829,9 +827,12 @@ class DataCollectionFragmentTest : BaseHiltTest() {
   private fun setupFragment(
     loiId: String? = LOCATION_OF_INTEREST.id,
     loiName: String? = LOCATION_OF_INTEREST_NAME,
+    tasks: List<Task> = TASKS,
     shouldLoadFromDraft: Boolean = false,
     draftValues: String? = null,
   ) {
+    setupSubmission(tasks)
+
     val argsBundle =
       DataCollectionFragmentArgs.Builder(
           loiId,
@@ -853,11 +854,6 @@ class DataCollectionFragmentTest : BaseHiltTest() {
   }
 
   private fun runner() = TaskFragmentRunner(this, composeTestRule, fragment)
-
-  private fun getToolbar() =
-    fragment.view?.findViewById<com.google.android.material.appbar.MaterialToolbar>(
-      R.id.data_collection_toolbar
-    )
 
   companion object {
     private const val TASK_ID_0 = "0"
@@ -935,5 +931,10 @@ class DataCollectionFragmentTest : BaseHiltTest() {
 
     private val JOB = FakeData.JOB.copy(tasks = TASKS.associateBy { it.id })
     private val SURVEY = FakeData.SURVEY.copy(jobMap = mapOf(Pair(JOB.id, JOB)))
+
+    private fun surveyWithTasks(tasks: List<Task>): Survey {
+      val job = JOB.copy(tasks = tasks.associateBy { it.id })
+      return SURVEY.copy(jobMap = mapOf(Pair(job.id, job)))
+    }
   }
 }

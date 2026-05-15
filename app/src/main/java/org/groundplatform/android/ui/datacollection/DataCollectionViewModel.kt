@@ -15,30 +15,31 @@
  */
 package org.groundplatform.android.ui.datacollection
 
-import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import javax.inject.Inject
-import javax.inject.Provider
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.groundplatform.android.data.local.room.converter.SubmissionDeltasConverter
 import org.groundplatform.android.data.uuid.OfflineUuidGenerator
 import org.groundplatform.android.di.coroutines.ApplicationScope
 import org.groundplatform.android.di.coroutines.IoDispatcher
-import org.groundplatform.android.repository.SubmissionRepository
 import org.groundplatform.android.ui.common.AbstractViewModel
-import org.groundplatform.android.ui.common.EphemeralPopups
 import org.groundplatform.android.ui.common.ViewModelFactory
 import org.groundplatform.android.ui.datacollection.tasks.AbstractTaskViewModel
+import org.groundplatform.android.ui.datacollection.tasks.DataCollectionEvent
 import org.groundplatform.android.ui.datacollection.tasks.TaskPositionInterface
 import org.groundplatform.android.ui.datacollection.tasks.date.DateTaskViewModel
 import org.groundplatform.android.ui.datacollection.tasks.instruction.InstructionTaskViewModel
@@ -50,16 +51,25 @@ import org.groundplatform.android.ui.datacollection.tasks.point.DropPinTaskViewM
 import org.groundplatform.android.ui.datacollection.tasks.polygon.DrawAreaTaskViewModel
 import org.groundplatform.android.ui.datacollection.tasks.text.TextTaskViewModel
 import org.groundplatform.android.ui.datacollection.tasks.time.TimeTaskViewModel
-import org.groundplatform.android.usecases.submission.SubmitDataUseCase
 import org.groundplatform.domain.model.job.Job
 import org.groundplatform.domain.model.submission.TaskData
 import org.groundplatform.domain.model.submission.ValueDelta
 import org.groundplatform.domain.model.submission.isNotNullOrEmpty
 import org.groundplatform.domain.model.task.Task
+import org.groundplatform.domain.repository.SubmissionRepositoryInterface
 import org.groundplatform.domain.usecases.GetLoiReportUseCase
+import org.groundplatform.domain.usecases.submission.SubmitDataUseCase
 import timber.log.Timber
+import javax.inject.Inject
+
+sealed interface DataCollectionUiEffect {
+  data object Exit : DataCollectionUiEffect
+
+  data class ShowValidationError(val errorResId: Int) : DataCollectionUiEffect
+}
 
 /** View model for the Data Collection fragment. */
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class DataCollectionViewModel
 @Inject
@@ -67,23 +77,32 @@ internal constructor(
   private val savedStateHandle: SavedStateHandle,
   @ApplicationScope private val externalScope: CoroutineScope,
   @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
-  private val submissionRepository: SubmissionRepository,
+  private val submissionRepository: SubmissionRepositoryInterface,
   private val submitDataUseCase: SubmitDataUseCase,
   private val offlineUuidGenerator: OfflineUuidGenerator,
-  private val popups: Provider<EphemeralPopups>,
   private val viewModelFactory: ViewModelFactory,
   private val dataCollectionInitializer: DataCollectionInitializer,
   private val getLoiReportUseCase: GetLoiReportUseCase,
 ) : AbstractViewModel() {
 
-  /** The current vertical position of the task view footer. */
-  private val _footerVerticalPosition = MutableStateFlow(0.0f)
-  val footerVerticalPosition: StateFlow<Float> = _footerVerticalPosition
+  private val _uiEffects = Channel<DataCollectionUiEffect>(Channel.BUFFERED)
+  val uiEffects = _uiEffects.receiveAsFlow()
+
+  private val _dataCollectionEvents =
+    MutableSharedFlow<DataCollectionEvent>(extraBufferCapacity = 1)
 
   private val _uiState = MutableStateFlow<DataCollectionUiState>(DataCollectionUiState.Loading)
   val uiState: StateFlow<DataCollectionUiState> = _uiState
 
-  val loiNameDialogOpen = mutableStateOf(false)
+  private val _loiNameDialogOpen = MutableStateFlow(false)
+  val loiNameDialogOpen: StateFlow<Boolean> = _loiNameDialogOpen.asStateFlow()
+
+  private val _showExitWarning = MutableStateFlow(false)
+  val showExitWarning: StateFlow<Boolean> = _showExitWarning.asStateFlow()
+
+  private val _loiNameDraft = MutableStateFlow("")
+  val loiNameDraft: StateFlow<String> = _loiNameDraft
+
   private var shouldLoadFromDraft: Boolean = savedStateHandle[TASK_SHOULD_LOAD_FROM_DRAFT] ?: false
 
   private val jobId: String = requireNotNull(savedStateHandle[TASK_JOB_ID_KEY])
@@ -117,12 +136,87 @@ internal constructor(
       }
       _uiState.value = initResult
     }
+
+    viewModelScope.launch {
+      _dataCollectionEvents.collect { event ->
+        withReadyOrNull { it.currentTaskId }
+          ?.let { taskId ->
+            when (event) {
+              DataCollectionEvent.NavigatePrevious -> onPreviousClicked(taskId)
+              DataCollectionEvent.NavigateNext -> onNextClicked(taskId)
+              DataCollectionEvent.ShowLoiDialog -> openLoiNameDialog()
+            }
+          }
+      }
+    }
   }
 
-  fun setLoiName(name: String) {
+  private fun setLoiName(name: String) {
     savedStateHandle[TASK_LOI_NAME_KEY] = name
     _uiState.update { state ->
       (state as? DataCollectionUiState.Ready)?.copy(loiName = name) ?: state
+    }
+  }
+
+  fun setLoiNameDraft(name: String) {
+    _loiNameDraft.value = name
+  }
+
+  private fun getLoiName(): String {
+    val state = uiState.value
+    return (state as? DataCollectionUiState.Ready)?.loiName ?: getTypedLoiNameOrEmpty()
+  }
+
+  fun openLoiNameDialog() {
+    setLoiNameDraft(getLoiName())
+    _loiNameDialogOpen.value = true
+  }
+
+  fun confirmLoiName(name: String) {
+    _loiNameDialogOpen.value = false
+    setLoiName(name)
+  }
+
+  fun dismissLoiNameDialog(initialName: String) {
+    _loiNameDialogOpen.value = false
+    setLoiNameDraft(initialName)
+  }
+
+  fun showExitWarning() {
+    _showExitWarning.value = true
+  }
+
+  fun dismissExitWarning() {
+    _showExitWarning.value = false
+  }
+
+  fun onCloseClicked() {
+    if (uiState.value is DataCollectionUiState.TaskSubmitted) {
+      viewModelScope.launch { _uiEffects.send(DataCollectionUiEffect.Exit) }
+    } else {
+      showExitWarning()
+    }
+  }
+
+  fun confirmExit() {
+    dismissExitWarning()
+    viewModelScope.launch { _uiEffects.send(DataCollectionUiEffect.Exit) }
+  }
+
+  fun handleLoiNameAction(action: LoiNameAction, taskId: String) {
+    when (action) {
+      is LoiNameAction.Confirmed -> {
+        if (action.name.isNotBlank()) {
+          confirmLoiName(action.name)
+          onNextClicked(taskId)
+        }
+      }
+      is LoiNameAction.Dismissed -> {
+        dismissLoiNameDialog(getLoiName())
+      }
+      is LoiNameAction.Changed -> {
+        setLoiNameDraft(action.name)
+      }
     }
   }
 
@@ -145,8 +239,6 @@ internal constructor(
     clearDraft()
   }
 
-  fun requireSurveyId(): String = withReady { it.surveyId }
-
   fun saveCurrentState() {
     if (!isReady() || !draftsEnabled) return
 
@@ -164,7 +256,8 @@ internal constructor(
     moveToTask(withReady { taskSequenceHandler.getPreviousTask(it.currentTaskId) })
   }
 
-  fun onNextClicked(taskViewModel: AbstractTaskViewModel) = withReady { st ->
+  fun onNextClicked(taskId: String) = withReady { uiState ->
+    val taskViewModel = getTaskViewModel(taskId) ?: return@withReady
     validateOrShow(taskViewModel) {
       val task = taskViewModel.task
       val value = taskViewModel.taskTaskData.value
@@ -175,12 +268,12 @@ internal constructor(
       } else {
         clearDraft()
         externalScope.launch(ioDispatcher) {
-          val submittedLoiId = saveChanges(st, getDeltas())
+          val submittedLoiId = saveChanges(uiState, getDeltas())
           val loiReport =
             getLoiReportUseCase.invoke(
               loiName = getTypedLoiNameOrEmpty(),
               loiId = submittedLoiId,
-              surveyId = st.surveyId,
+              surveyId = uiState.surveyId,
             )
           _uiState.value = DataCollectionUiState.TaskSubmitted(loiReport)
         }
@@ -188,7 +281,8 @@ internal constructor(
     }
   }
 
-  fun onPreviousClicked(taskViewModel: AbstractTaskViewModel) = withReady { _ ->
+  fun onPreviousClicked(taskId: String) = withReady { _ ->
+    val taskViewModel = getTaskViewModel(taskId) ?: return@withReady
     val task = taskViewModel.task
     val taskValue = taskViewModel.taskTaskData.value
 
@@ -196,7 +290,9 @@ internal constructor(
       if (taskValue?.isNotNullOrEmpty() == true) taskViewModel.validate() else null
 
     if (validationError != null) {
-      popups.get().ErrorPopup().show(validationError)
+      viewModelScope.launch {
+        _uiEffects.send(DataCollectionUiEffect.ShowValidationError(validationError))
+      }
     } else {
       updateDataAndInvalidateTasks(task, taskValue)
       moveToPreviousTask()
@@ -236,6 +332,7 @@ internal constructor(
               isLastPositionWithValue(task, taskData)
           },
         surveyId = state.surveyId,
+        eventReporter = { _dataCollectionEvents.tryEmit(it) },
       )
       updateDataAndInvalidateTasks(task, taskData)
       taskViewModels.value[task.id] = created
@@ -378,7 +475,7 @@ internal constructor(
   private inline fun validateOrShow(taskVm: AbstractTaskViewModel, onValid: () -> Unit) {
     val error = taskVm.validate()
     if (error != null) {
-      popups.get().ErrorPopup().show(error)
+      viewModelScope.launch { _uiEffects.send(DataCollectionUiEffect.ShowValidationError(error)) }
     } else {
       onValid()
     }
@@ -388,10 +485,6 @@ internal constructor(
     uiState
       .map { (it as? DataCollectionUiState.Ready)?.currentTaskId == taskId }
       .distinctUntilChanged()
-
-  fun updateFooterPosition(top: Float) {
-    _footerVerticalPosition.value = top
-  }
 
   companion object {
     private const val TASK_JOB_ID_KEY = "jobId"

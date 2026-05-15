@@ -25,6 +25,7 @@ import androidx.compose.ui.test.performTextInput
 import com.google.common.truth.Truth.assertThat
 import org.groundplatform.android.R
 import org.groundplatform.android.getString
+import org.groundplatform.android.ui.datacollection.LoiNameAction
 import org.groundplatform.android.ui.datacollection.components.ButtonAction
 import org.groundplatform.android.ui.datacollection.components.ButtonActionState
 import org.groundplatform.android.ui.datacollection.components.InstructionData
@@ -50,8 +51,6 @@ class TaskScreenTest {
         shouldShowLoiNameDialog = false,
         showInstructionsDialog = false,
         loiName = "",
-        onFooterPositionUpdated = {},
-        onAction = {},
         footerContent = { Text("Header Card Content") },
         taskBody = {},
       )
@@ -70,8 +69,6 @@ class TaskScreenTest {
         shouldShowLoiNameDialog = false,
         showInstructionsDialog = false,
         loiName = "",
-        onFooterPositionUpdated = {},
-        onAction = {},
         footerContent = null,
         taskBody = { Text("Task Body Content") },
       )
@@ -82,7 +79,7 @@ class TaskScreenTest {
 
   @Test
   fun `renders footer actions and triggers callback`() {
-    var actionFired: TaskScreenAction? = null
+    var actionFired: ButtonAction? = null
 
     composeTestRule.setContent {
       TaskScreen(
@@ -92,8 +89,7 @@ class TaskScreenTest {
         shouldShowLoiNameDialog = false,
         showInstructionsDialog = false,
         loiName = "",
-        onFooterPositionUpdated = {},
-        onAction = { actionFired = it },
+        onButtonClicked = { actionFired = it },
         footerContent = null,
         taskBody = {},
       )
@@ -101,7 +97,7 @@ class TaskScreenTest {
 
     composeTestRule.onNodeWithText("Next").performClick()
 
-    assertThat(actionFired).isEqualTo(TaskScreenAction.OnButtonClicked(ButtonAction.NEXT))
+    assertThat(actionFired).isEqualTo(ButtonAction.NEXT)
   }
 
   @Test
@@ -114,8 +110,6 @@ class TaskScreenTest {
         shouldShowLoiNameDialog = true,
         showInstructionsDialog = false,
         loiName = "My Custom LOI",
-        onFooterPositionUpdated = {},
-        onAction = {},
         footerContent = null,
         taskBody = {},
       )
@@ -126,7 +120,9 @@ class TaskScreenTest {
 
   @Test
   fun `triggers LoiNameDialog callbacks`() {
-    var actionFired: TaskScreenAction? = null
+    var confirmedName: String? = null
+    var dismissed = false
+    var changedName: String? = null
 
     composeTestRule.setContent {
       TaskScreen(
@@ -136,8 +132,13 @@ class TaskScreenTest {
         shouldShowLoiNameDialog = true,
         showInstructionsDialog = false,
         loiName = "My Custom LOI",
-        onFooterPositionUpdated = {},
-        onAction = { actionFired = it },
+        onLoiNameAction = { action ->
+          when (action) {
+            is LoiNameAction.Confirmed -> confirmedName = action.name
+            is LoiNameAction.Dismissed -> dismissed = true
+            is LoiNameAction.Changed -> changedName = action.name
+          }
+        },
         footerContent = null,
         taskBody = {},
       )
@@ -145,18 +146,18 @@ class TaskScreenTest {
 
     // Trigger explicit callbacks
     composeTestRule.onNodeWithText("Save").performClick()
-    assertThat(actionFired).isEqualTo(TaskScreenAction.OnLoiNameConfirm("My Custom LOI"))
+    assertThat(confirmedName).isEqualTo("My Custom LOI")
 
     composeTestRule.onNodeWithText("Cancel").performClick()
-    assertThat(actionFired).isEqualTo(TaskScreenAction.OnLoiNameDismiss)
+    assertThat(dismissed).isTrue()
 
     composeTestRule.onNodeWithTag(LOI_NAME_TEXT_FIELD_TEST_TAG).performTextInput("appended ")
-    assertThat(actionFired).isEqualTo(TaskScreenAction.OnLoiNameChanged("appended My Custom LOI"))
+    assertThat(changedName).isEqualTo("appended My Custom LOI")
   }
 
   @Test
   fun `renders InstructionsDialog and triggers callback`() {
-    var actionFired: TaskScreenAction? = null
+    var instructionsDismissed = false
 
     composeTestRule.setContent {
       TaskScreen(
@@ -166,8 +167,7 @@ class TaskScreenTest {
         shouldShowLoiNameDialog = false,
         showInstructionsDialog = true,
         loiName = "",
-        onFooterPositionUpdated = {},
-        onAction = { actionFired = it },
+        onInstructionsDismiss = { instructionsDismissed = true },
         footerContent = null,
         taskBody = {},
       )
@@ -176,34 +176,7 @@ class TaskScreenTest {
     composeTestRule.onNodeWithText(getString(R.string.add_point)).assertIsDisplayed()
     composeTestRule.onNodeWithText("Close").performClick()
 
-    assertThat(actionFired).isEqualTo(TaskScreenAction.OnInstructionsDismiss)
-  }
-
-  @Test
-  fun `triggers onFooterPositionUpdated when layout coordinates change`() {
-    var footerPosition = -1f
-
-    composeTestRule.setContent {
-      TaskScreen(
-        taskHeader = null,
-        instructionData = null,
-        taskActionButtonsStates = emptyList(),
-        shouldShowLoiNameDialog = false,
-        showInstructionsDialog = false,
-        loiName = "",
-        onFooterPositionUpdated = { footerPosition = it },
-        onAction = {},
-        footerContent = null,
-        taskBody = {},
-      )
-    }
-
-    // Compose will do a layout pass and call onGloballyPositioned,
-    // which in turn updates the layoutCoordinates state and triggers LaunchedEffect.
-    composeTestRule.waitForIdle()
-
-    // Asserts that the callback was fired and a layout coordinate window position was provided.
-    assertThat(footerPosition).isAtLeast(0f)
+    assertThat(instructionsDismissed).isTrue()
   }
 
   @Test
@@ -216,8 +189,6 @@ class TaskScreenTest {
         shouldShowLoiNameDialog = false,
         showInstructionsDialog = false,
         loiName = "",
-        onFooterPositionUpdated = {},
-        onAction = {},
         footerContent = null,
         taskBody = {},
       )
@@ -236,8 +207,6 @@ class TaskScreenTest {
         shouldShowLoiNameDialog = false,
         showInstructionsDialog = false,
         loiName = "My Custom LOI",
-        onFooterPositionUpdated = {},
-        onAction = {},
         footerContent = null,
         taskBody = {},
       )
@@ -256,8 +225,6 @@ class TaskScreenTest {
         shouldShowLoiNameDialog = false,
         showInstructionsDialog = false,
         loiName = "",
-        onFooterPositionUpdated = {},
-        onAction = {},
         footerContent = null,
         taskBody = {},
       )
@@ -276,8 +243,6 @@ class TaskScreenTest {
         shouldShowLoiNameDialog = false,
         showInstructionsDialog = true, // Expected to show, but data is null
         loiName = "",
-        onFooterPositionUpdated = {},
-        onAction = {},
         footerContent = null,
         taskBody = {},
       )
