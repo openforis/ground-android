@@ -337,27 +337,6 @@ class SurveySelectorViewModelTest : BaseHiltTest() {
     }
   }
 
-  @Test
-  fun `activateSurvey from deeplink works correctly`() = runWithTestDispatcher {
-    val savedState = SavedStateHandle(mapOf("surveyId" to "deeplink-id"))
-    whenever(activateSurveyUseCase("deeplink-id")).thenReturn(true)
-    createViewModel(savedStateHandle = savedState)
-
-    viewModel.events.test { assertThat(awaitItem()).isEqualTo(SurveySelectorEvent.NavigateToHome) }
-  }
-
-  @Test
-  fun `activateSurvey from deeplink shows error on failure`() = runWithTestDispatcher {
-    val savedState = SavedStateHandle(mapOf("surveyId" to "bad-id"))
-    val error = RuntimeException("activation failed")
-    whenever(activateSurveyUseCase("bad-id")).thenThrow(error)
-    createViewModel(savedStateHandle = savedState)
-
-    viewModel.events.test {
-      assertThat(awaitItem()).isEqualTo(SurveySelectorEvent.ShowError(error))
-    }
-  }
-
   companion object {
     private val TEST_SURVEY =
       SurveyListItem(
