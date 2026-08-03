@@ -102,15 +102,20 @@ class PolygonDrawingSessionTest {
   }
 
   @Test
-  fun `commitTentativeVertex adds vertex to committed list`() {
+  fun `commitTentativeVertex falls back to the camera target when there is no cursor`() {
     session.commitTentativeVertex(COORDINATE_1)
-    assertThat(session.vertices).containsExactly(COORDINATE_1)
+
+    assertThat(session.vertices).containsExactly(COORDINATE_1, COORDINATE_1)
+    assertThat(session.state.isTooClose).isTrue()
   }
 
   @Test
-  fun `commitTentativeVertex sets isTooClose true when size greater than 1`() {
+  fun `commitTentativeVertex commits the existing cursor and ignores the passed target`() {
     session.setVertices(listOf(COORDINATE_1, COORDINATE_2))
+
     session.commitTentativeVertex(COORDINATE_3)
+
+    assertThat(session.vertices).containsExactly(COORDINATE_1, COORDINATE_2, COORDINATE_2).inOrder()
     assertThat(session.state.isTooClose).isTrue()
   }
 
@@ -231,6 +236,33 @@ class PolygonDrawingSessionTest {
 
     session.redoLastVertex()
     assertThat(session.state.isMarkedComplete).isFalse()
+  }
+
+  @Test
+  fun `state exposes isClosed based on the current geometry`() {
+    session.setVertices(listOf(C1, C3, C2))
+    assertThat(session.state.isClosed).isFalse()
+
+    session.setVertices(listOf(C1, C3, C2, C4, C1))
+    assertThat(session.state.isClosed).isTrue()
+  }
+
+  @Test
+  fun `state exposes canRedo based on the redo stack`() {
+    session.setVertices(listOf(C1, C2))
+    assertThat(session.state.canRedo).isFalse()
+
+    session.removeLastVertex()
+    assertThat(session.state.canRedo).isTrue()
+  }
+
+  @Test
+  fun `state exposes hasSelfIntersection based on the current geometry`() {
+    session.setVertices(listOf(C1, C2, C3, C4))
+    assertThat(session.state.hasSelfIntersection).isTrue()
+
+    session.removeLastVertex()
+    assertThat(session.state.hasSelfIntersection).isFalse()
   }
 
   companion object {

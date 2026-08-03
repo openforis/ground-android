@@ -59,6 +59,8 @@ import org.groundplatform.domain.model.task.Task
 import org.groundplatform.domain.repository.SubmissionRepositoryInterface
 import org.groundplatform.domain.usecases.GetLoiReportUseCase
 import org.groundplatform.domain.usecases.submission.SubmitDataUseCase
+import org.groundplatform.feature.pdf.LoiReportExporter
+import org.groundplatform.ui.components.loireport.LoiReportAction
 import timber.log.Timber
 
 sealed interface DataCollectionUiEffect {
@@ -69,6 +71,8 @@ sealed interface DataCollectionUiEffect {
   data class SetAwaitingPhotoCapture(val awaiting: Boolean) : DataCollectionUiEffect
 
   data class ShowValidationError(val errorResId: Int) : DataCollectionUiEffect
+
+  data object ShowReportExportError : DataCollectionUiEffect
 }
 
 /** View model for the Data Collection fragment. */
@@ -86,6 +90,7 @@ internal constructor(
   private val viewModelFactory: ViewModelFactory,
   private val dataCollectionInitializer: DataCollectionInitializer,
   private val getLoiReportUseCase: GetLoiReportUseCase,
+  private val loiReportExporter: LoiReportExporter,
 ) : AbstractViewModel() {
 
   private val _uiEffects = Channel<DataCollectionUiEffect>(Channel.BUFFERED)
@@ -179,7 +184,7 @@ internal constructor(
 
   fun onCloseClicked() {
     if (uiState.value is DataCollectionUiState.TaskSubmitted) {
-      viewModelScope.launch { _uiEffects.send(DataCollectionUiEffect.Exit) }
+      exitDataCollection()
     } else {
       showExitWarning()
     }
@@ -187,6 +192,21 @@ internal constructor(
 
   fun confirmExit() {
     dismissExitWarning()
+    exitDataCollection()
+  }
+
+  fun onBackClicked() {
+    when (val state = _uiState.value) {
+      is DataCollectionUiState.Ready ->
+        if (taskSequenceHandler.isFirstPosition(state.currentTaskId)) showExitWarning()
+        else moveToPreviousTask()
+      is DataCollectionUiState.TaskSubmitted -> exitDataCollection()
+      is DataCollectionUiState.Error,
+      DataCollectionUiState.Loading -> showExitWarning()
+    }
+  }
+
+  private fun exitDataCollection() {
     viewModelScope.launch { _uiEffects.send(DataCollectionUiEffect.Exit) }
   }
 
@@ -197,6 +217,15 @@ internal constructor(
   private fun setAwaitingPhotoCapture(awaiting: Boolean) {
     viewModelScope.launch {
       _uiEffects.send(DataCollectionUiEffect.SetAwaitingPhotoCapture(awaiting))
+    }
+  }
+
+  fun onLoiReportAction(action: LoiReportAction) {
+    val loiReport = (uiState.value as? DataCollectionUiState.TaskSubmitted)?.loiReport
+    viewModelScope.launch {
+      if (loiReport == null || loiReportExporter.export(loiReport, action).isFailure) {
+        _uiEffects.send(DataCollectionUiEffect.ShowReportExportError)
+      }
     }
   }
 
@@ -228,8 +257,6 @@ internal constructor(
         taskSequenceHandler.checkIfTaskIsLastWithValue(task.id to newValue)
       }
     } ?: false
-
-  fun isAtFirstTask(): Boolean = withReady { taskSequenceHandler.isFirstPosition(it.currentTaskId) }
 
   fun clearDraftBlocking() {
     suppressDrafts()

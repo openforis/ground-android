@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.groundplatform.android.system.auth.AuthenticationManager
+import org.groundplatform.android.system.deeplink.PlayInstallReferrerService
 import org.groundplatform.android.ui.common.AbstractViewModel
 import org.groundplatform.android.util.isPermissionDeniedException
 import org.groundplatform.domain.repository.TermsOfServiceRepositoryInterface
@@ -46,10 +47,12 @@ sealed interface TosUiState {
     val agreeChecked: Boolean,
     override val isViewOnly: Boolean,
   ) : TosUiState
+
+  data class Error(override val isViewOnly: Boolean) : TosUiState
 }
 
 sealed interface TosEvent {
-  object NavigateToSurveySelector : TosEvent
+  data class NavigateToSurveySelector(val deferredSurveyId: String?) : TosEvent
 
   object LoadError : TosEvent
 }
@@ -60,6 +63,7 @@ class TermsOfServiceViewModel
 constructor(
   private val authManager: AuthenticationManager,
   private val termsOfServiceRepository: TermsOfServiceRepositoryInterface,
+  private val playInstallReferrerService: PlayInstallReferrerService,
   savedStateHandle: SavedStateHandle,
 ) : AbstractViewModel() {
 
@@ -68,7 +72,7 @@ constructor(
   private val _uiState = MutableStateFlow<TosUiState>(TosUiState.Loading(isViewOnly))
   val uiState: StateFlow<TosUiState> = _uiState.asStateFlow()
 
-  private val _events = Channel<TosEvent>()
+  private val _events = Channel<TosEvent>(Channel.BUFFERED)
   val events = _events.receiveAsFlow()
 
   init {
@@ -88,12 +92,18 @@ constructor(
   fun onAgreeButtonClicked() {
     viewModelScope.launch {
       termsOfServiceRepository.isTermsOfServiceAccepted = true
-      _events.send(TosEvent.NavigateToSurveySelector)
+      val deferredSurveyId = playInstallReferrerService.getDeferredSurveyId()
+      _events.send(TosEvent.NavigateToSurveySelector(deferredSurveyId))
     }
+  }
+
+  fun onRetryClicked() {
+    loadTermsOfService()
   }
 
   private fun loadTermsOfService() {
     viewModelScope.launch {
+      _uiState.value = TosUiState.Loading(isViewOnly)
       try {
         val tos = termsOfServiceRepository.getTermsOfService()?.text ?: ""
         val flavor = CommonMarkFlavourDescriptor()
@@ -107,8 +117,12 @@ constructor(
         if (!e.isExpectedFailure()) {
           Timber.e(e, "Failed to load Terms of Service")
         }
-        _events.send(TosEvent.LoadError)
-        authManager.signOut()
+        if (isViewOnly) {
+          _uiState.value = TosUiState.Error(isViewOnly)
+        } else {
+          _events.send(TosEvent.LoadError)
+          authManager.signOut()
+        }
       }
     }
   }

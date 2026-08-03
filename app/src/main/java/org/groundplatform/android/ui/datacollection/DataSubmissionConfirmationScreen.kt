@@ -45,30 +45,33 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import ground_android.core.ui.generated.resources.Res
-import ground_android.core.ui.generated.resources.scan_this_qr_to_download_geojson
-import org.jetbrains.compose.resources.stringResource as multiplatformStringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import ground_android.core.ui.generated.resources.Res
+import ground_android.core.ui.generated.resources.scan_this_qr_to_download_geojson
 import java.util.Date
-import kotlin.time.Clock
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import org.groundplatform.android.R
 import org.groundplatform.android.ui.common.ExcludeFromJacocoGeneratedReport
+import org.groundplatform.domain.model.geometry.Coordinates
+import org.groundplatform.domain.model.geometry.Point
 import org.groundplatform.domain.model.locationofinterest.LoiReport
+import org.groundplatform.ui.components.loireport.LoiReportAction
 import org.groundplatform.ui.components.loireport.SubmissionPdfItem
 import org.groundplatform.ui.components.qrcode.GroundQrCode
 import org.groundplatform.ui.theme.AppTheme
+import org.jetbrains.compose.resources.stringResource as multiplatformStringResource
 
 @Composable
 fun DataSubmissionConfirmationScreen(
   modifier: Modifier = Modifier,
   loiReport: LoiReport? = null,
   onDismissed: () -> Unit,
+  onLoiReportAction: (LoiReportAction) -> Unit,
 ) {
   val baseModifier =
     modifier
@@ -89,12 +92,16 @@ fun DataSubmissionConfirmationScreen(
         }
       }
       Spacer(modifier = Modifier.width(16.dp))
-      ShareableContent(modifier = Modifier.weight(1f), loiReport = loiReport)
+      ShareableContent(
+        modifier = Modifier.weight(1f),
+        loiReport = loiReport,
+        onLoiReportAction = onLoiReportAction,
+      )
     }
   } else {
     Column(modifier = baseModifier, horizontalAlignment = Alignment.CenterHorizontally) {
       HeaderContent(modifier = Modifier.padding(vertical = 16.dp))
-      ShareableContent(loiReport = loiReport)
+      ShareableContent(loiReport = loiReport, onLoiReportAction = onLoiReportAction)
       OutlinedButton(modifier = Modifier.padding(vertical = 24.dp), onClick = { onDismissed() }) {
         Text(
           modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
@@ -137,7 +144,11 @@ private fun HeaderContent(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun ShareableContent(modifier: Modifier = Modifier, loiReport: LoiReport?) {
+private fun ShareableContent(
+  modifier: Modifier = Modifier,
+  loiReport: LoiReport?,
+  onLoiReportAction: (LoiReportAction) -> Unit,
+) {
   val context = LocalContext.current
 
   loiReport?.let {
@@ -164,19 +175,18 @@ private fun ShareableContent(modifier: Modifier = Modifier, loiReport: LoiReport
         )
       }
 
-      loiReport.submissions?.let {
+      val details = loiReport.submissionDetails
+      val submission = details?.submissions?.firstOrNull()
+      if (details != null && submission != null) {
         SubmissionPdfItem(
           modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-          title = loiReport.surveyName,
+          title = details.surveyName,
           loiName = loiReport.loiName,
-          userName = loiReport.userName,
-          date = DateFormat.getDateFormat(context).format(Date(loiReport.dateMillis)),
-          onItemClick = {
-            /* To be implemented in a follow-up on https://github.com/google/ground-android/issues/3715 */
-          },
-          onShareClick = {
-            /* To be implemented in a follow-up on https://github.com/google/ground-android/issues/3715 */
-          },
+          userName = details.userName,
+          date =
+            DateFormat.getDateFormat(context).format(Date(submission.lastModified.clientTimestamp)),
+          onItemClick = { onLoiReportAction(LoiReportAction.OnPdfItemClicked(submission)) },
+          onShareClick = { onLoiReportAction(LoiReportAction.OnShareClicked(submission)) },
         )
       }
     }
@@ -185,9 +195,6 @@ private fun ShareableContent(modifier: Modifier = Modifier, loiReport: LoiReport
 
 private val testLoiReport =
   LoiReport(
-    surveyName = "Test Survey",
-    userName = "John Doe",
-    dateMillis = Clock.System.now().toEpochMilliseconds(),
     loiName = "Test LOI",
     geoJson =
       JsonObject(
@@ -203,19 +210,39 @@ private val testLoiReport =
             ),
         )
       ),
-    submissions = emptyList(),
+    submissionDetails =
+      LoiReport.SubmissionDetails(
+        surveyName = "Test Survey",
+        userName = "John Doe",
+        userEmail = "john.doe@example.com",
+        submissions = emptyList(),
+        geometry = Point(Coordinates(0.0, 0.0)),
+        style = null,
+      ),
   )
 
 @Composable
 @Preview(showSystemUi = true)
 @ExcludeFromJacocoGeneratedReport
 private fun DataSubmissionConfirmationScreenPortraitPreview() {
-  AppTheme { DataSubmissionConfirmationScreen(loiReport = testLoiReport) {} }
+  AppTheme {
+    DataSubmissionConfirmationScreen(
+      loiReport = testLoiReport,
+      onLoiReportAction = {},
+      onDismissed = {},
+    )
+  }
 }
 
 @Composable
 @Preview(heightDp = 320, widthDp = 800)
 @ExcludeFromJacocoGeneratedReport
 private fun DataSubmissionConfirmationScreenLandscapePreview() {
-  AppTheme { DataSubmissionConfirmationScreen(loiReport = testLoiReport) {} }
+  AppTheme {
+    DataSubmissionConfirmationScreen(
+      loiReport = testLoiReport,
+      onLoiReportAction = {},
+      onDismissed = {},
+    )
+  }
 }

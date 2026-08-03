@@ -30,13 +30,14 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         if: github.event.pull_request.head.repo.full_name == github.repository
         with:
           ref: ${{ github.head_ref }}
+          persist-credentials: false
       - name: "TODO to Issue"
         if: github.event.pull_request.head.repo.full_name == github.repository
-        uses: alstr/todo-to-issue-action@v5.1.14
+        uses: alstr/todo-to-issue-action@37bb7b56e58569ef273b60678048030a7f0c261a # v5.1.15
         with:
           AUTO_ASSIGN: "true"
           INSERT_ISSUE_URLS: "true"

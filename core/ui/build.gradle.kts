@@ -21,20 +21,25 @@ plugins {
   alias(libs.plugins.compose.compiler)
 }
 
+apply(from = "../../config/jacoco/jacoco.gradle")
+
 compose.resources { publicResClass = true }
 
 kotlin {
   jvmToolchain(libs.versions.jvmToolchainVersion.get().toInt())
-  androidLibrary {
+  android {
     namespace = "org.groundplatform.core.ui"
-    compileSdk = libs.versions.androidCompileSdk.get().toInt()
+    compileSdk {
+      version =
+        release(libs.versions.androidCompileSdk.get().toInt()) {
+          minorApiLevel = libs.versions.androidCompileSdkMinor.get().toInt()
+        }
+    }
     minSdk = libs.versions.androidMinSdk.get().toInt()
     androidResources.enable = true
 
     withHostTest { isIncludeAndroidResources = true }
   }
-
-  jvm()
 
   val xcfName = "GroundUiKit"
   listOf(iosArm64(), iosSimulatorArm64()).forEach {
@@ -53,8 +58,7 @@ kotlin {
         implementation(libs.compose.material3)
         implementation(libs.compose.ui)
         implementation(libs.compose.ui.tooling.preview)
-        implementation(libs.compose.components.resources)
-        implementation(libs.androidx.lifecycle.runtime.compose)
+        api(libs.compose.components.resources)
         implementation(libs.kotlinx.collections.immutable)
       }
     }

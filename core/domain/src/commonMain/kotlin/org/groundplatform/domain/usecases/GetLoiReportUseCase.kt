@@ -27,10 +27,12 @@ import org.groundplatform.domain.model.geometry.LinearRing
 import org.groundplatform.domain.model.geometry.MultiPolygon
 import org.groundplatform.domain.model.geometry.Point
 import org.groundplatform.domain.model.geometry.Polygon
+import org.groundplatform.domain.model.locationofinterest.LOI_ID_PROPERTY
 import org.groundplatform.domain.model.locationofinterest.LOI_NAME_PROPERTY
-import org.groundplatform.domain.model.locationofinterest.LoiProperties
+import org.groundplatform.domain.model.locationofinterest.LocationOfInterest
 import org.groundplatform.domain.model.locationofinterest.LoiReport
 import org.groundplatform.domain.repository.LocationOfInterestRepositoryInterface
+import org.groundplatform.domain.repository.SubmissionRepositoryInterface
 import org.groundplatform.domain.repository.SurveyRepositoryInterface
 import org.groundplatform.domain.repository.UserRepositoryInterface
 import org.groundplatform.domain.util.toFixedDecimals
@@ -44,40 +46,50 @@ class GetLoiReportUseCase(
   private val locationOfInterestRepository: LocationOfInterestRepositoryInterface,
   private val userRepositoryInterface: UserRepositoryInterface,
   private val surveyRepositoryInterface: SurveyRepositoryInterface,
+  private val submissionRepositoryInterface: SubmissionRepositoryInterface,
+  private val formatDateTime: (timestampMillis: Long, pattern: String) -> String,
 ) {
   /**
    * Returns a [LoiReport] for the given LOI, or `null` if it does not exist.
    *
-   * @param loiName the identifier of the location of interest.
+   * @param loiName the name of the location of interest
+   * @param loiId the identifier of the location of interest.
    * @param surveyId the identifier of the survey the LOI belongs to.
    * @throws IllegalStateException if the LOI geometry is a bare [LinearRing].
    */
   suspend operator fun invoke(loiName: String, loiId: String, surveyId: String): LoiReport? {
-    val loi = locationOfInterestRepository.getOfflineLoi(surveyId, loiId)
-    val user = userRepositoryInterface.getAuthenticatedUser()
-    val surveyName = surveyRepositoryInterface.getOfflineSurvey(surveyId)?.title.orEmpty()
-    val submissions = null // To be implemented in a follow-up on
-    // https://github.com/google/ground-android/issues/3715
-    return loi?.let {
-      LoiReport(
-        surveyName = surveyName,
-        loiName = loiName,
-        userName = user.displayName,
-        dateMillis = it.lastModified.clientTimestamp,
-        geoJson =
-          it.geometry.toGeoJson(
-            it.properties.filter { property -> property.key == LOI_NAME_PROPERTY }
-          ),
-        submissions = submissions,
-      )
-    }
+    val loi = locationOfInterestRepository.getOfflineLoi(surveyId, loiId) ?: return null
+    val submissions =
+      submissionRepositoryInterface.getSubmissions(loi).sortedByDescending {
+        it.lastModified.clientTimestamp
+      }
+    val survey = surveyRepositoryInterface.getOfflineSurvey(surveyId)
+    val surveyName = survey?.title.orEmpty()
+    val submissionDetails =
+      if (submissions.isNotEmpty()) {
+        val user = userRepositoryInterface.getAuthenticatedUser()
+        LoiReport.SubmissionDetails(
+          surveyName = surveyName,
+          userName = user.displayName,
+          userEmail = user.email,
+          submissions = submissions,
+          geometry = loi.geometry,
+          style = loi.job.style,
+        )
+      } else null
+
+    return LoiReport(
+      loiName = loiName,
+      geoJson = loi.geometry.toGeoJson(loi = loi, surveyName = surveyName),
+      submissionDetails = submissionDetails,
+    )
   }
 
   /**
    * Converts a [Geometry] to its GeoJSON representation as defined by
    * [RFC 7946](https://datatracker.ietf.org/doc/html/rfc7946).
    */
-  private fun Geometry.toGeoJson(loiProperties: LoiProperties): JsonObject {
+  private fun Geometry.toGeoJson(loi: LocationOfInterest, surveyName: String): JsonObject {
     val geometryJson =
       when (this) {
         is Point -> geoJsonObject(TYPE_POINT, coordinatesToPosition(coordinates))
@@ -90,10 +102,12 @@ class GetLoiReportUseCase(
         is MultiPolygon ->
           geoJsonObject(TYPE_MULTI_POLYGON, JsonArray(polygons.map { polygonToCoordinates(it) }))
       }
+    val properties = getLoiPropertiesMap(loi, surveyName)
+
     return JsonObject(
       mapOf(
         KEY_TYPE to JsonPrimitive(TYPE_FEATURE),
-        KEY_PROPERTIES to JsonObject(loiProperties.mapValues { it.value.toJsonPrimitive() }),
+        KEY_PROPERTIES to JsonObject(properties),
         KEY_GEOMETRY to geometryJson,
       )
     )
@@ -131,16 +145,34 @@ class GetLoiReportUseCase(
     return JsonUnquotedLiteral(value)
   }
 
+  private fun getLoiPropertiesMap(
+    loi: LocationOfInterest,
+    surveyName: String,
+  ): Map<String, JsonPrimitive> = buildMap {
+    loi.properties[LOI_NAME_PROPERTY]?.let { put(LOI_NAME_PROPERTY, it.toJsonPrimitive()) }
+      ?: loi.properties[LOI_ID_PROPERTY]?.let { put(LOI_ID_PROPERTY, it.toJsonPrimitive()) }
+    put(KEY_SURVEY, JsonPrimitive(surveyName))
+    if (loi.isPredefined != true) {
+      put(
+        KEY_DATE,
+        JsonPrimitive(formatDateTime(loi.lastModified.clientTimestamp, QR_DATE_PATTERN)),
+      )
+    }
+  }
+
   private companion object {
     const val KEY_TYPE = "type"
     const val TYPE_FEATURE = "Feature"
     const val KEY_PROPERTIES = "properties"
     const val KEY_GEOMETRY = "geometry"
     const val KEY_COORDINATES = "coordinates"
+    const val KEY_SURVEY = "survey"
+    const val KEY_DATE = "date"
     const val TYPE_POINT = "Point"
     const val TYPE_LINE_STRING = "LineString"
     const val TYPE_POLYGON = "Polygon"
     const val TYPE_MULTI_POLYGON = "MultiPolygon"
     const val DECIMAL_DIGITS = 6
+    const val QR_DATE_PATTERN = "yyyyMMdd HH:mm"
   }
 }

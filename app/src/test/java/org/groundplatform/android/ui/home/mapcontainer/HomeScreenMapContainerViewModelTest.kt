@@ -27,11 +27,15 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.advanceUntilIdle
 import org.groundplatform.android.BaseHiltTest
 import org.groundplatform.android.FakeData.ADHOC_JOB
+import org.groundplatform.android.FakeData.DATA_SHARING_TERMS
+import org.groundplatform.android.FakeData.JOB
 import org.groundplatform.android.FakeData.LOCATION_OF_INTEREST
 import org.groundplatform.android.FakeData.LOCATION_OF_INTEREST_FEATURE
 import org.groundplatform.android.FakeData.LOCATION_OF_INTEREST_LOI_REPORT
 import org.groundplatform.android.FakeData.SURVEY
 import org.groundplatform.android.FakeData.USER
+import org.groundplatform.android.R
+import org.groundplatform.android.common.Constants.CLUSTERING_ZOOM_THRESHOLD
 import org.groundplatform.android.data.remote.FakeRemoteDataStore
 import org.groundplatform.android.di.LocationOfInterestRepositoryModule
 import org.groundplatform.android.system.auth.FakeAuthenticationManager
@@ -39,11 +43,14 @@ import org.groundplatform.android.ui.home.mapcontainer.jobs.AdHocDataCollectionB
 import org.groundplatform.android.ui.home.mapcontainer.jobs.JobMapComponentState
 import org.groundplatform.android.ui.home.mapcontainer.jobs.SelectedLoiSheetData
 import org.groundplatform.android.usecases.survey.ActivateSurveyUseCase
+import org.groundplatform.domain.model.Survey
 import org.groundplatform.domain.model.geometry.Coordinates
 import org.groundplatform.domain.model.map.Bounds
 import org.groundplatform.domain.model.map.CameraPosition
 import org.groundplatform.domain.repository.LocationOfInterestRepositoryInterface
 import org.groundplatform.domain.repository.UserRepositoryInterface
+import org.groundplatform.testing.FakeDataGenerator
+import org.groundplatform.ui.components.loireport.LoiReportAction
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -91,6 +98,7 @@ class HomeScreenMapContainerViewModelTest : BaseHiltTest() {
     viewModel.onFeatureClicked(features = setOf(LOCATION_OF_INTEREST_FEATURE))
     val state = viewModel.processJobMapComponentState().first()
     advanceUntilIdle()
+    val actualGeoJson = (state as JobMapComponentState.LoiSelected).loi.loiReport!!.geoJson
     assertThat(state)
       .isEqualTo(
         JobMapComponentState.LoiSelected(
@@ -99,7 +107,11 @@ class HomeScreenMapContainerViewModelTest : BaseHiltTest() {
             loi = LOCATION_OF_INTEREST,
             submissionCount = 0,
             showDeleteLoiButton = true,
-            loiReport = LOCATION_OF_INTEREST_LOI_REPORT,
+            loiReport =
+              LOCATION_OF_INTEREST_LOI_REPORT.copy(
+                submissionDetails = null,
+                geoJson = actualGeoJson,
+              ),
           )
         )
       )
@@ -146,6 +158,20 @@ class HomeScreenMapContainerViewModelTest : BaseHiltTest() {
       val addLoiState = state as JobMapComponentState.AddLoiButton
       assertThat(addLoiState.jobs.map { it.job }).containsExactly(ADHOC_JOB)
     }
+
+  @Test
+  fun `job component state is AddLoiButton below clustering threshold`() = runWithTestDispatcher {
+    viewModel.onMapCameraMoved(
+      CAMERA_POSITION.copy(zoomLevel = CLUSTERING_ZOOM_THRESHOLD - 1f)
+    )
+    advanceUntilIdle()
+
+    val state = viewModel.processJobMapComponentState().first()
+
+    assertThat(state).isInstanceOf(JobMapComponentState.AddLoiButton::class.java)
+    assertThat((state as JobMapComponentState.AddLoiButton).jobs.map { it.job })
+      .containsExactly(ADHOC_JOB)
+  }
 
   @Test
   fun `setJobSelectionModalVisibility hides map actions when modal is shown`() =
@@ -196,6 +222,108 @@ class HomeScreenMapContainerViewModelTest : BaseHiltTest() {
     val result = viewModel.resolveAddLoiAction(state)
 
     assertThat(result).isNull()
+  }
+
+  @Test
+  fun `onCollectData emits ShowError when user cannot collect data`() = runWithTestDispatcher {
+    val cardData = AdHocDataCollectionButtonData(canCollectData = false, job = ADHOC_JOB)
+
+    viewModel.onCollectData(cardData)
+    advanceUntilIdle()
+
+    assertThat(viewModel.uiEffects.first())
+      .isEqualTo(HomeScreenMapContainerUiEffect.ShowError(R.string.collect_data_viewer_error))
+  }
+
+  @Test
+  fun `onCollectData emits ShowError when card has no valid tasks`() = runWithTestDispatcher {
+    val cardData =
+      SelectedLoiSheetData(
+        canCollectData = true,
+        loi = LOCATION_OF_INTEREST,
+        submissionCount = 0,
+        showDeleteLoiButton = false,
+        loiReport = null,
+      )
+
+    viewModel.onCollectData(cardData)
+    advanceUntilIdle()
+
+    assertThat(viewModel.uiEffects.first())
+      .isEqualTo(HomeScreenMapContainerUiEffect.ShowError(R.string.no_tasks_error))
+  }
+
+  @Test
+  fun `onCollectData emits ShowDataSharingTerms when terms not yet accepted`() =
+    runWithTestDispatcher {
+      val cardData = AdHocDataCollectionButtonData(canCollectData = true, job = ADHOC_JOB)
+
+      viewModel.onCollectData(cardData)
+      advanceUntilIdle()
+
+      assertThat(viewModel.uiEffects.first())
+        .isEqualTo(
+          HomeScreenMapContainerUiEffect.ShowDataSharingTerms(cardData, DATA_SHARING_TERMS)
+        )
+    }
+
+  @Test
+  fun `onCollectData emits NavigateToDataCollection when terms already accepted`() =
+    runWithTestDispatcher {
+      viewModel.grantDataSharingConsent()
+      val cardData = AdHocDataCollectionButtonData(canCollectData = true, job = ADHOC_JOB)
+
+      viewModel.onCollectData(cardData)
+      advanceUntilIdle()
+
+      assertThat(viewModel.uiEffects.first())
+        .isEqualTo(HomeScreenMapContainerUiEffect.NavigateToDataCollection(cardData))
+    }
+
+  @Test
+  fun `onCollectData emits ShowError when data sharing terms are invalid`() =
+    runWithTestDispatcher {
+      val survey =
+        SURVEY.copy(
+          id = "INVALID_TERMS_SURVEY",
+          dataSharingTerms = Survey.DataSharingTerms.Custom(""),
+        )
+      remoteDataStore.surveys = listOf(survey)
+      activateSurvey(survey.id)
+      advanceUntilIdle()
+      val cardData = AdHocDataCollectionButtonData(canCollectData = true, job = ADHOC_JOB)
+
+      viewModel.onCollectData(cardData)
+      advanceUntilIdle()
+
+      assertThat(viewModel.uiEffects.first())
+        .isEqualTo(HomeScreenMapContainerUiEffect.ShowError(R.string.invalid_data_sharing_terms))
+    }
+
+  @Test
+  fun `showDataCollectionHint emits ShowInfo for read-only survey with no LOIs`() =
+    runWithTestDispatcher {
+      val readOnlySurvey = SURVEY.copy(id = "READ_ONLY_SURVEY", jobMap = mapOf(JOB.id to JOB))
+      whenever(loiRepository.getValidLois(readOnlySurvey)).thenReturn(flowOf(setOf()))
+      remoteDataStore.surveys = listOf(readOnlySurvey)
+      activateSurvey(readOnlySurvey.id)
+      advanceUntilIdle()
+
+      viewModel.showDataCollectionHint()
+      advanceUntilIdle()
+
+      assertThat(viewModel.uiEffects.first())
+        .isEqualTo(HomeScreenMapContainerUiEffect.ShowInfo(R.string.read_only_data_collection_hint))
+    }
+
+  @Test
+  fun `onLoiReportAction emits ShowError when no LOI is selected`() = runWithTestDispatcher {
+    // No LOI is selected, so there is no report to export.
+    viewModel.onLoiReportAction(LoiReportAction.OnShareClicked(FakeDataGenerator.newSubmission()))
+    advanceUntilIdle()
+
+    assertThat(viewModel.uiEffects.first())
+      .isEqualTo(HomeScreenMapContainerUiEffect.ShowError(R.string.unexpected_error))
   }
 
   companion object {

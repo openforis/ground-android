@@ -18,8 +18,11 @@ package org.groundplatform.domain.usecases
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import org.groundplatform.domain.model.geometry.Coordinates
 import org.groundplatform.domain.model.geometry.Geometry
 import org.groundplatform.domain.model.geometry.LineString
@@ -27,12 +30,14 @@ import org.groundplatform.domain.model.geometry.LinearRing
 import org.groundplatform.domain.model.geometry.MultiPolygon
 import org.groundplatform.domain.model.geometry.Point
 import org.groundplatform.domain.model.geometry.Polygon
+import org.groundplatform.domain.model.job.Style
 import org.groundplatform.domain.model.locationofinterest.AuditInfo
 import org.groundplatform.domain.model.locationofinterest.LoiProperties
 import org.groundplatform.domain.model.locationofinterest.LoiReport
 import org.groundplatform.domain.model.locationofinterest.generateProperties
 import org.groundplatform.testing.FakeDataGenerator
 import org.groundplatform.testing.FakeLocationOfInterestRepository
+import org.groundplatform.testing.FakeSubmissionRepository
 import org.groundplatform.testing.FakeSurveyRepository
 import org.groundplatform.testing.FakeUserRepository
 
@@ -41,8 +46,16 @@ class GetLoiReportUseCaseTest {
   private val loiRepository = FakeLocationOfInterestRepository()
   private val userRepository = FakeUserRepository()
   private val surveyRepository = FakeSurveyRepository()
+  private val submissionRepository = FakeSubmissionRepository()
+  private val formatDateTime: (Long, String) -> String = { millis, _ -> "date-$millis" }
   private val getLoiReportUseCase =
-    GetLoiReportUseCase(loiRepository, userRepository, surveyRepository)
+    GetLoiReportUseCase(
+      loiRepository,
+      userRepository,
+      surveyRepository,
+      submissionRepository,
+      formatDateTime,
+    )
 
   @Test
   fun `Should get a report with the correct geoJson for a Point`() = runTest {
@@ -52,19 +65,18 @@ class GetLoiReportUseCaseTest {
         properties = generateProperties("Point test"),
       )
 
-    val expectedGeoJson =
-      """
-      {
-        "type": "Feature",
-        "properties": {"name": "Point test"},
-        "geometry": {
+    assertGeoJson(
+      loiReport,
+      properties = expectedProperties(name = "Point test"),
+      geometry =
+        """
+        {
           "type": "Point",
           "coordinates": [-89.000000, 41.000000]
         }
-      }
-      """
-        .trimIndent()
-    assertEquals(Json.parseToJsonElement(expectedGeoJson), loiReport.geoJson)
+        """
+          .trimIndent(),
+    )
   }
 
   @Test
@@ -81,21 +93,20 @@ class GetLoiReportUseCaseTest {
     val loiReport =
       invokeUseCase(geometry = Polygon(shell), properties = generateProperties("Polygon test"))
 
-    val expectedGeoJson =
-      """
-      {
-        "type": "Feature",
-        "properties": {"name": "Polygon test"},
-        "geometry": {
+    assertGeoJson(
+      loiReport,
+      properties = expectedProperties(name = "Polygon test"),
+      geometry =
+        """
+        {
           "type": "Polygon",
           "coordinates": [
             [[0.000000, 0.000000], [0.000000, 1.000000], [1.000000, 1.000000], [0.000000, 0.000000]]
           ]
         }
-      }
-      """
-        .trimIndent()
-    assertEquals(Json.parseToJsonElement(expectedGeoJson), loiReport.geoJson)
+        """
+          .trimIndent(),
+    )
   }
 
   @Test
@@ -124,22 +135,21 @@ class GetLoiReportUseCaseTest {
         properties = generateProperties("Polygon with holes test"),
       )
 
-    val expectedGeoJson =
-      """
-      {
-        "type": "Feature",
-        "properties": {"name": "Polygon with holes test"},
-        "geometry": {
+    assertGeoJson(
+      loiReport,
+      properties = expectedProperties(name = "Polygon with holes test"),
+      geometry =
+        """
+        {
           "type": "Polygon",
           "coordinates": [
             [[0.000000, 0.000000], [0.000000, 10.000000], [10.000000, 10.000000], [0.000000, 0.000000]],
             [[2.000000, 2.000000], [2.000000, 3.000000], [3.000000, 3.000000], [2.000000, 2.000000]]
           ]
         }
-      }
-      """
-        .trimIndent()
-    assertEquals(Json.parseToJsonElement(expectedGeoJson), loiReport.geoJson)
+        """
+          .trimIndent(),
+    )
   }
 
   @Test
@@ -168,22 +178,21 @@ class GetLoiReportUseCaseTest {
         properties = generateProperties("MultiPolygon test"),
       )
 
-    val expectedGeoJson =
-      """
-      {
-        "type": "Feature",
-        "properties": {"name": "MultiPolygon test"},
-        "geometry": {
+    assertGeoJson(
+      loiReport,
+      properties = expectedProperties(name = "MultiPolygon test"),
+      geometry =
+        """
+        {
           "type": "MultiPolygon",
           "coordinates": [
             [[[0.000000, 0.000000], [0.000000, 1.000000], [1.000000, 1.000000], [0.000000, 0.000000]]],
             [[[5.000000, 5.000000], [5.000000, 6.000000], [6.000000, 6.000000], [5.000000, 5.000000]]]
           ]
         }
-      }
-      """
-        .trimIndent()
-    assertEquals(Json.parseToJsonElement(expectedGeoJson), loiReport.geoJson)
+        """
+          .trimIndent(),
+    )
   }
 
   @Test
@@ -193,42 +202,63 @@ class GetLoiReportUseCaseTest {
     val loiReport =
       invokeUseCase(geometry = lineString, properties = generateProperties("LineString test"))
 
-    val expectedGeoJson =
-      """
-      {
-        "type": "Feature",
-        "properties": {"name": "LineString test"},
-        "geometry": {
+    assertGeoJson(
+      loiReport,
+      properties = expectedProperties(name = "LineString test"),
+      geometry =
+        """
+        {
           "type": "LineString",
           "coordinates": [[20.000000, 10.000000], [40.000000, 30.000000], [60.000000, 50.000000]]
         }
-      }
-      """
-        .trimIndent()
-    assertEquals(Json.parseToJsonElement(expectedGeoJson), loiReport.geoJson)
+        """
+          .trimIndent(),
+    )
   }
 
   @Test
-  fun `Should get a report with empty properties when no name is provided`() = runTest {
+  fun `Should still include survey and date when no name is provided`() = runTest {
     val loiReport =
       invokeUseCase(
         geometry = Point(Coordinates(lat = 0.0, lng = 0.0)),
         properties = generateProperties(),
       )
 
-    val expectedGeoJson =
-      """
-      {
-        "type": "Feature",
-        "properties": {},
-        "geometry": {
+    assertGeoJson(
+      loiReport,
+      properties = expectedProperties(),
+      geometry =
+        """
+        {
           "type": "Point",
           "coordinates": [0.000000, 0.000000]
         }
-      }
-      """
-        .trimIndent()
-    assertEquals(Json.parseToJsonElement(expectedGeoJson), loiReport.geoJson)
+        """
+          .trimIndent(),
+    )
+  }
+
+  @Test
+  fun `Should not include date for predefined LOIs`() = runTest {
+    val loiReport =
+      invokeUseCase(
+        geometry = Point(Coordinates(lat = 0.0, lng = 0.0)),
+        properties = generateProperties("Predefined test"),
+        isPredefined = true,
+      )
+
+    assertGeoJson(
+      loiReport,
+      properties = expectedProperties(name = "Predefined test", includeDate = false),
+      geometry =
+        """
+        {
+          "type": "Point",
+          "coordinates": [0.000000, 0.000000]
+        }
+        """
+          .trimIndent(),
+    )
   }
 
   @Test
@@ -262,12 +292,12 @@ class GetLoiReportUseCaseTest {
     val loiReport =
       invokeUseCase(geometry = lineString, properties = generateProperties("Rounding test"))
 
-    val expectedGeoJson =
-      """
-      {
-        "type": "Feature",
-        "properties": {"name": "Rounding test"},
-        "geometry": {
+    assertGeoJson(
+      loiReport,
+      properties = expectedProperties(name = "Rounding test"),
+      geometry =
+        """
+        {
           "type": "LineString",
           "coordinates": [
             [2.987654, 1.123457],
@@ -275,68 +305,200 @@ class GetLoiReportUseCaseTest {
             [6.987654, 5.123457]
           ]
         }
-      }
-      """
-        .trimIndent()
-
-    assertEquals(Json.parseToJsonElement(expectedGeoJson), loiReport.geoJson)
+        """
+          .trimIndent(),
+    )
   }
 
   @Test
-  fun `Should only include name property even if more are provided`() = runTest {
-    val properties =
-      generateProperties("Name test") +
-        mapOf("description" to "Should be removed", "extra" to "Also removed")
-
+  fun `Should only include loiName, surveyName and date as properties`() = runTest {
     val loiReport =
-      invokeUseCase(geometry = Point(Coordinates(lat = 0.0, lng = 0.0)), properties = properties)
+      invokeUseCase(
+        geometry = Point(Coordinates(lat = 0.0, lng = 0.0)),
+        properties =
+          generateProperties("Properties test") +
+            mapOf("description" to "Should be removed", "extra" to "Also removed"),
+      )
 
-    val expectedGeoJson =
-      """
-      {
-        "type": "Feature",
-        "properties": {"name": "Name test"},
-        "geometry": {
+    assertGeoJson(
+      loiReport,
+      properties = expectedProperties(name = "Properties test"),
+      geometry =
+        """
+        {
           "type": "Point",
           "coordinates": [0.000000, 0.000000]
         }
-      }
-      """
-        .trimIndent()
-
-    assertEquals(Json.parseToJsonElement(expectedGeoJson), loiReport.geoJson)
+        """
+          .trimIndent(),
+    )
   }
 
   @Test
-  fun `Should populate loiName, userName and dateMillis from the inputs`() = runTest {
-    userRepository.currentUser = FakeDataGenerator.newUser(displayName = "John Doe")
-    loiRepository.offlineLoi =
-      loiRepository.offlineLoi.copy(
-        lastModified = AuditInfo(user = userRepository.currentUser, clientTimestamp = 987654321L)
+  fun `Should only include loiId, surveyName and date as properties, when no loiName is present`() =
+    runTest {
+      val loiReport =
+        invokeUseCase(
+          geometry = Point(Coordinates(lat = 0.0, lng = 0.0)),
+          properties =
+            mapOf("id" to "loiId", "description" to "Should be removed", "extra" to "Also removed"),
+        )
+
+      assertGeoJson(
+        loiReport,
+        properties = expectedProperties(id = "loiId"),
+        geometry =
+          """
+          {
+            "type": "Point",
+            "coordinates": [0.000000, 0.000000]
+          }
+          """
+            .trimIndent(),
       )
+    }
+
+  @Test
+  fun `Should populate loiName, userName and userEmail from the inputs`() = runTest {
+    userRepository.currentUser =
+      FakeDataGenerator.newUser(displayName = "John Doe", email = "john@example.com")
+    submissionRepository.submissions = listOf(FakeDataGenerator.newSubmission())
 
     val loiReport =
       getLoiReportUseCase.invoke(loiName = "Test LOI", loiId = "loiId", surveyId = "surveyId")!!
 
     assertEquals("Test LOI", loiReport.loiName)
-    assertEquals("John Doe", loiReport.userName)
-    assertEquals(987654321L, loiReport.dateMillis)
+    assertEquals("John Doe", loiReport.submissionDetails!!.userName)
+    assertEquals("john@example.com", loiReport.submissionDetails.userEmail)
   }
 
   @Test
   fun `Should populate surveyName from the offline survey`() = runTest {
     surveyRepository.offlineSurveys =
       listOf(FakeDataGenerator.newSurvey(id = "surveyId", title = "Restoration areas"))
+    submissionRepository.submissions = listOf(FakeDataGenerator.newSubmission())
 
     val loiReport =
       getLoiReportUseCase.invoke(loiName = "loiName", loiId = "loiId", surveyId = "surveyId")!!
 
-    assertEquals("Restoration areas", loiReport.surveyName)
+    assertEquals("Restoration areas", loiReport.submissionDetails!!.surveyName)
   }
 
-  private suspend fun invokeUseCase(geometry: Geometry, properties: LoiProperties): LoiReport {
+  @Test
+  fun `Should include all submissions sorted by lastModified clientTimestamp descending`() =
+    runTest {
+      val older =
+        FakeDataGenerator.newSubmission(
+          id = "older",
+          lastModified = AuditInfo(FakeDataGenerator.newUser(), clientTimestamp = 100L),
+        )
+      val middle =
+        FakeDataGenerator.newSubmission(
+          id = "middle",
+          lastModified = AuditInfo(FakeDataGenerator.newUser(), clientTimestamp = 200L),
+        )
+      val newer =
+        FakeDataGenerator.newSubmission(
+          id = "newer",
+          lastModified = AuditInfo(FakeDataGenerator.newUser(), clientTimestamp = 300L),
+        )
+      submissionRepository.submissions = listOf(newer, older, middle)
+
+      val loiReport =
+        getLoiReportUseCase.invoke(loiName = "loiName", loiId = "loiId", surveyId = "surveyId")!!
+
+      assertEquals(
+        listOf("newer", "middle", "older"),
+        loiReport.submissionDetails!!.submissions.map { it.id },
+      )
+    }
+
+  @Test
+  fun `Should return null submission details when no submissions exist`() = runTest {
+    submissionRepository.submissions = emptyList()
+
+    val loiReport =
+      getLoiReportUseCase.invoke(loiName = "loiName", loiId = "loiId", surveyId = "surveyId")!!
+
+    assertNull(loiReport.submissionDetails)
+  }
+
+  @Test
+  fun `Should populate map snapshot with the LOI geometry and job style`() = runTest {
+    val geometry = Point(Coordinates(lat = 41.0, lng = -89.0))
     loiRepository.offlineLoi =
-      loiRepository.offlineLoi.copy(geometry = geometry, properties = properties)
+      loiRepository.offlineLoi.copy(
+        geometry = geometry,
+        job = FakeDataGenerator.newJob(style = Style("#4169E1")),
+      )
+    submissionRepository.submissions = listOf(FakeDataGenerator.newSubmission())
+
+    val loiReport =
+      getLoiReportUseCase.invoke(loiName = "loiName", loiId = "loiId", surveyId = "surveyId")!!
+
+    assertEquals(geometry, loiReport.submissionDetails!!.geometry)
+    assertEquals(Style("#4169E1"), loiReport.submissionDetails.style)
+  }
+
+  @Test
+  fun `Should populate map snapshot with a null style when the job has no style`() = runTest {
+    loiRepository.offlineLoi =
+      loiRepository.offlineLoi.copy(job = FakeDataGenerator.newJob().copy(style = null))
+    submissionRepository.submissions = listOf(FakeDataGenerator.newSubmission())
+
+    val loiReport =
+      getLoiReportUseCase.invoke(loiName = "loiName", loiId = "loiId", surveyId = "surveyId")!!
+
+    assertNull(loiReport.submissionDetails!!.style)
+  }
+
+  private suspend fun invokeUseCase(
+    geometry: Geometry,
+    properties: LoiProperties,
+    isPredefined: Boolean? = false,
+  ): LoiReport {
+    surveyRepository.offlineSurveys =
+      listOf(FakeDataGenerator.newSurvey(id = "surveyId", title = SURVEY_TITLE))
+    loiRepository.offlineLoi =
+      loiRepository.offlineLoi.copy(
+        geometry = geometry,
+        properties = properties,
+        isPredefined = isPredefined,
+        lastModified = AuditInfo(FakeDataGenerator.newUser(), clientTimestamp = TEST_TIMESTAMP),
+      )
     return getLoiReportUseCase.invoke("loiName", "loiId", "surveyId")!!
+  }
+
+  private fun expectedProperties(
+    name: String? = null,
+    id: String? = null,
+    includeDate: Boolean = true,
+  ): String {
+    val expectedDate = formatDateTime(TEST_TIMESTAMP, "")
+    val properties = buildMap {
+      name?.let { put("name", it) }
+      id?.let { put("id", it) }
+      put("survey", SURVEY_TITLE)
+      if (includeDate) put("date", expectedDate)
+    }
+    return JsonObject(properties.mapValues { JsonPrimitive(it.value) }).toString()
+  }
+
+  private fun assertGeoJson(loiReport: LoiReport, properties: String, geometry: String) {
+    val expected =
+      """
+      {
+        "type": "Feature",
+        "properties": $properties,
+        "geometry": $geometry
+      }
+      """
+        .trimIndent()
+    assertEquals(Json.parseToJsonElement(expected), loiReport.geoJson)
+  }
+
+  private companion object {
+    const val SURVEY_TITLE = "Restoration areas"
+    const val TEST_TIMESTAMP = 0L
   }
 }

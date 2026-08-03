@@ -19,6 +19,7 @@ package org.groundplatform.android.ui.datacollection
 import android.content.Context
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.navigation.fragment.findNavController
@@ -26,6 +27,9 @@ import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import dagger.hilt.android.testing.BindValue
 import dagger.hilt.android.testing.HiltAndroidTest
+import dagger.hilt.android.testing.UninstallModules
+import javax.inject.Inject
+import kotlin.time.Clock
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -38,6 +42,7 @@ import org.groundplatform.android.R
 import org.groundplatform.android.data.local.room.converter.SubmissionDeltasConverter
 import org.groundplatform.android.data.remote.FakeRemoteDataStore
 import org.groundplatform.android.data.sync.MutationSyncWorkManager
+import org.groundplatform.android.di.PdfModule
 import org.groundplatform.android.getString
 import org.groundplatform.android.testrules.FragmentScenarioRule
 import org.groundplatform.android.ui.datacollection.tasks.point.DropPinTaskViewModel
@@ -63,18 +68,22 @@ import org.groundplatform.domain.repository.LocationOfInterestRepositoryInterfac
 import org.groundplatform.domain.repository.MutationRepositoryInterface
 import org.groundplatform.domain.repository.SubmissionRepositoryInterface
 import org.groundplatform.domain.repository.UserRepositoryInterface
+import org.groundplatform.feature.pdf.LoiReportExporter
+import org.groundplatform.testing.FakeDataGenerator
+import org.groundplatform.ui.components.loireport.LoiReportAction
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mock
+import org.mockito.kotlin.any
+import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.shadows.ShadowToast
-import javax.inject.Inject
-import kotlin.time.Clock
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltAndroidTest
+@UninstallModules(PdfModule::class)
 @RunWith(RobolectricTestRunner::class)
 class DataCollectionFragmentTest : BaseHiltTest() {
   @get:Rule(order = 4) val composeTestRule = createComposeRule()
@@ -88,6 +97,7 @@ class DataCollectionFragmentTest : BaseHiltTest() {
   @Inject lateinit var userRepository: UserRepositoryInterface
 
   @BindValue @Mock lateinit var mutationSyncWorkManager: MutationSyncWorkManager
+  @BindValue @Mock lateinit var loiReportExporter: LoiReportExporter
 
   lateinit var fragment: DataCollectionFragment
 
@@ -437,6 +447,48 @@ class DataCollectionFragmentTest : BaseHiltTest() {
     }
 
   @Test
+  fun `Back navigation on a later task returns to the previous task`() = runWithTestDispatcher {
+    setupFragment()
+
+    runner()
+      .inputText(TASK_1_RESPONSE)
+      .clickNextButton()
+      .validateTextIsDisplayed(TASK_2_NAME)
+      .pressBackButton()
+      .validateTextIsDisplayed(TASK_1_NAME)
+      .validateTextIsNotDisplayed(TASK_2_NAME)
+  }
+
+  @Test
+  fun `Clicking close button displays the exit confirmation dialog`() = runWithTestDispatcher {
+    setupFragment()
+
+    composeTestRule.onNodeWithContentDescription("Close").performClick()
+    composeTestRule.waitForIdle()
+
+    composeTestRule
+      .onNodeWithText(getString(R.string.data_collection_cancellation_title))
+      .assertIsDisplayed()
+  }
+
+  @Test
+  fun `Clicking close button after submission exits the screen`() = runWithTestDispatcher {
+    setupFragment()
+
+    runner()
+      .inputText(TASK_1_RESPONSE)
+      .clickNextButton()
+      .selectOption(TASK_2_OPTION_LABEL)
+      .clickDoneButton()
+
+    composeTestRule.onNodeWithContentDescription("Close").performClick()
+    advanceUntilIdle()
+
+    assertThat(fragment.findNavController().currentDestination?.id)
+      .isNotEqualTo(R.id.data_collection_fragment)
+  }
+
+  @Test
   fun `Multiple choice task remembers previous selection when navigating back and forth`() {
     setupFragment()
 
@@ -707,6 +759,52 @@ class DataCollectionFragmentTest : BaseHiltTest() {
     val state = fragment.viewModel.uiState.value
     assertTrue(state is DataCollectionUiState.TaskSubmitted)
   }
+
+  @Test
+  fun `onLoiReportAction shows an error when exporting the report fails`() = runWithTestDispatcher {
+    whenever(loiReportExporter.export(any(), any())).thenReturn(Result.failure(RuntimeException()))
+    setupFragment()
+    runner()
+      .inputText(TASK_1_RESPONSE)
+      .clickNextButton()
+      .selectOption(TASK_2_OPTION_LABEL)
+      .clickDoneButton()
+    advanceUntilIdle()
+    val state = fragment.viewModel.uiState.value as DataCollectionUiState.TaskSubmitted
+    assertThat(state.loiReport).isNotNull()
+
+    fragment.viewModel.onLoiReportAction(
+      LoiReportAction.OnShareClicked(FakeDataGenerator.newSubmission())
+    )
+    advanceUntilIdle()
+    composeTestRule.waitForIdle()
+
+    assertThat(ShadowToast.shownToastCount()).isEqualTo(1)
+    assertThat(ShadowToast.getTextOfLatestToast()).isEqualTo(getString(R.string.unexpected_error))
+  }
+
+  @Test
+  fun `onLoiReportAction does not show an error when exporting the report succeeds`() =
+    runWithTestDispatcher {
+      whenever(loiReportExporter.export(any(), any())).thenReturn(Result.success(Unit))
+      setupFragment()
+      runner()
+        .inputText(TASK_1_RESPONSE)
+        .clickNextButton()
+        .selectOption(TASK_2_OPTION_LABEL)
+        .clickDoneButton()
+      advanceUntilIdle()
+      val state = fragment.viewModel.uiState.value as DataCollectionUiState.TaskSubmitted
+      assertThat(state.loiReport).isNotNull()
+
+      fragment.viewModel.onLoiReportAction(
+        LoiReportAction.OnShareClicked(FakeDataGenerator.newSubmission())
+      )
+      advanceUntilIdle()
+      composeTestRule.waitForIdle()
+
+      assertThat(ShadowToast.shownToastCount()).isEqualTo(0)
+    }
 
   @Test
   fun `Clicking done after triggering conditional task saves task data`() = runWithTestDispatcher {
